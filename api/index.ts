@@ -58,7 +58,7 @@ async function sbGet(url: string, headers: Record<string, string>) {
 }
 
 async function sbPost(url: string, headers: Record<string, string>, body: object, prefer?: string) {
-  const h = { ...headers, Accept: "application/json" }
+  const h: Record<string, string> = { ...headers, Accept: "application/json" }
   if (prefer) h["Prefer"] = prefer
   const r = await fetch(url, { method: "POST", headers: h, body: JSON.stringify(body) })
   if (!r.ok) {

@@ -6,7 +6,9 @@ import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path
 import { Hono } from "hono"
 import type { Context } from "hono"
 import { WebTaskRunner } from "./task-runner"
-import type { ContentMode, ConversationTurn } from "./task-prompts"
+import { getModeLabel, type ContentMode, type ConversationTurn } from "./task-prompts"
+import { runDeepSeekTask } from "./deepseek"
+import { randomUUID } from "node:crypto"
 import { loadDotEnv, readSettings, toPublicSettings, writeSettings, type WebSettings } from "./settings"
 import { createSupabaseUser, getPublicConfig, isSupabaseConfigured } from "./supabase"
 
@@ -14,9 +16,13 @@ const app = new Hono()
 const runner = new WebTaskRunner()
 loadDotEnv(process.cwd())
 
-const initialRootDirectory = resolve(process.env.EDITAI_WEB_ROOT ?? process.env.NEWTYPE_WEB_ROOT ?? process.cwd())
+const initialRootDirectory = resolve(
+  process.env.VERCEL ? "/tmp/editai" : (process.env.EDITAI_WEB_ROOT ?? process.env.NEWTYPE_WEB_ROOT ?? process.cwd())
+)
 let workspaceDirectory = initialRootDirectory
-const publicDirectory = resolve(import.meta.dir, "public")
+// import.meta.dir is Bun-specific; fall back to __dirname for Node.js/Vercel
+const _currentDir: string = typeof import.meta.dir === "string" ? import.meta.dir : __dirname
+const publicDirectory = resolve(_currentDir, "public")
 const port = Number(process.env.PORT ?? process.env.EDITAI_WEB_PORT ?? process.env.NEWTYPE_WEB_PORT ?? 3899)
 const NOTE_DIRECTORY_NAME = "editai_note"
 const EDITAI_DIRECTORY_NAME = ".editai"
@@ -506,15 +512,48 @@ app.post("/api/tasks", async (c) => {
   const auth = await getAuthUser(c)
   if (!auth) return c.json({ error: "Unauthorized" }, 401)
 
-  const mode = body.mode ?? "chat"
-  // Task runner always uses local FS; create the directory if it doesn't exist yet
+  const mode = (body.mode ?? "chat") as ContentMode
+  const now = new Date().toISOString()
+
+  // Vercel: serverless functions are stateless — run DeepSeek synchronously and return result directly
+  if (process.env.VERCEL) {
+    const taskId = randomUUID()
+    try {
+      const result = await runDeepSeekTask({
+        mode,
+        message: body.message ?? "",
+        context: body.context,
+        conversation: Array.isArray(body.conversation) ? body.conversation : [],
+      })
+      return c.json({
+        task: {
+          id: taskId, mode, label: getModeLabel(mode),
+          message: body.message, status: "completed",
+          directory: "/tmp", output: result.content,
+          events: [], createdAt: now, updatedAt: now,
+        },
+      }, 201)
+    } catch (error) {
+      return c.json({
+        task: {
+          id: taskId, mode, label: getModeLabel(mode),
+          message: body.message, status: "failed",
+          directory: "/tmp", output: "",
+          error: error instanceof Error ? error.message : String(error),
+          events: [], createdAt: now, updatedAt: now,
+        },
+      }, 201)
+    }
+  }
+
+  // Local: async task with polling
   const taskDirectory = body.projectPath ? resolveNotesPath(body.projectPath) : getNotesDirectory()
   mkdirSync(taskDirectory, { recursive: true })
   const taskStat = await stat(taskDirectory)
   if (!taskStat.isDirectory()) return c.json({ error: "Project path is not a directory" }, 400)
   const task = runner.create({
     mode,
-    message: body.message,
+    message: body.message ?? "",
     context: body.context,
     style: body.style,
     filePath: body.filePath,
@@ -669,20 +708,26 @@ app.get("*", async (c) => {
 
   if (rel.startsWith("..") || !existsSync(filePath)) {
     const indexPath = join(publicDirectory, "index.html")
-    return new Response(Bun.file(indexPath), {
+    const content = await readFile(indexPath)
+    return new Response(content, {
       headers: { "content-type": "text/html; charset=utf-8" },
     })
   }
 
-  return new Response(Bun.file(filePath), {
+  const content = await readFile(filePath)
+  return new Response(content, {
     headers: { "content-type": contentTypes[extname(filePath)] ?? "application/octet-stream" },
   })
 })
 
-console.log(`editAI running at http://localhost:${port}`)
-console.log(`Workspace: ${workspaceDirectory}`)
+export default app
 
-Bun.serve({
-  port,
-  fetch: app.fetch,
-})
+// Local Bun server — not used on Vercel
+if (!process.env.VERCEL && typeof globalThis.Bun !== "undefined") {
+  console.log(`editAI running at http://localhost:${port}`)
+  console.log(`Workspace: ${workspaceDirectory}`)
+  ;(globalThis as { Bun: { serve: (opts: { port: number; fetch: typeof app.fetch }) => void } }).Bun.serve({
+    port,
+    fetch: app.fetch,
+  })
+}

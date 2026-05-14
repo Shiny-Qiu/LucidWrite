@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>editAI</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <!-- Auth gate — shown when user is not logged in -->
+    <div id="authGate" class="auth-gate">
+      <div class="auth-card">
+        <div class="auth-brand">
+          <p class="eyebrow">editAI</p>
+          <h1>Writing Studio</h1>
+        </div>
+        <div class="auth-tabs">
+          <button class="auth-tab active" data-tab="login">登录</button>
+          <button class="auth-tab" data-tab="register">注册</button>
+        </div>
+        <div id="loginForm" class="auth-form">
+          <label>邮箱<input id="loginEmail" type="email" placeholder="your@email.com" autocomplete="email" /></label>
+          <label>密码<input id="loginPassword" type="password" placeholder="至少 6 位" autocomplete="current-password" /></label>
+          <div id="loginError" class="auth-error"></div>
+          <button id="loginButton" class="send-button auth-submit">登录</button>
+        </div>
+        <div id="registerForm" class="auth-form" hidden>
+          <label>邮箱<input id="registerEmail" type="email" placeholder="your@email.com" autocomplete="email" /></label>
+          <label>密码<input id="registerPassword" type="password" placeholder="至少 6 位" autocomplete="new-password" /></label>
+          <div id="registerError" class="auth-error"></div>
+          <button id="registerButton" class="send-button auth-submit">注册</button>
+        </div>
+        <div id="authConfigError" class="auth-error" style="margin-top:12px"></div>
+      </div>
+    </div>
+
+    <div class="app-shell" hidden>
+      <aside class="sidebar">
+        <div class="brand">
+          <div>
+            <p class="eyebrow">editAI</p>
+            <h1>Writing Studio</h1>
+          </div>
+          <div class="brand-actions">
+            <span id="userEmail" class="user-email"></span>
+            <button id="settingsButton" class="icon-button" title="Settings" aria-label="Settings">⚙</button>
+            <button id="logoutButton" class="icon-button" title="退出登录" aria-label="退出登录">⏻</button>
+          </div>
+        </div>
+
+        <section class="directory-panel">
+          <div class="panel-title">
+            <span>目录</span>
+            <button id="refreshFiles" class="icon-button" title="Refresh files" aria-label="Refresh files">↻</button>
+          </div>
+          <div class="workspace-switcher">
+            <button id="chooseWorkspace" class="secondary-button">选择工作目录</button>
+          </div>
+          <div id="currentPath" class="current-path"></div>
+          <div id="fileTree" class="file-tree"></div>
+        </section>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <button id="toggleLeftPane" class="pane-toggle" title="收起/展开目录" aria-label="Toggle directory pane">☰</button>
+          <nav id="processSteps" class="process-steps" aria-label="Writing process">
+            <button class="process-step active" data-step="topic">选题交互</button>
+            <button class="process-step" data-step="outline">大纲框架</button>
+            <button class="process-step" data-step="draft">初稿敲定</button>
+            <button class="process-step" data-step="refine">内容精修</button>
+            <button class="process-step" data-step="fact">事实核查</button>
+            <button class="process-step" data-step="score">质量评分</button>
+            <button class="process-step" data-step="final">终稿敲定</button>
+          </nav>
+          <button id="toggleRightPane" class="pane-toggle" title="收起/展开预览" aria-label="Toggle preview pane">◫</button>
+        </header>
+        <div id="modeHint" class="mode-hint">从右侧开始对话，editAI 会按流程调度合适的专家能力。</div>
+
+        <section id="projectGate" class="project-gate">
+          <div class="project-card">
+            <p class="eyebrow">New Project</p>
+            <h2>创建一个文章项目</h2>
+            <p>editAI 会在当前工作目录的 <code>editai_note</code> 文件夹下创建项目，并默认生成 <code>draft.md</code>。</p>
+            <div class="project-create-row">
+              <input id="projectNameInput" type="text" placeholder="输入项目名，不要包含 / : \\ 等非法字符" />
+              <button id="createProjectButton" class="send-button">创建</button>
+            </div>
+            <div id="projectError" class="project-error"></div>
+            <div id="projectList" class="project-list"></div>
+          </div>
+        </section>
+
+        <section id="writingStage" class="writing-stage" hidden>
+          <div class="draft-header">
+            <div>
+              <p class="eyebrow">Draft</p>
+              <h2 id="activeProjectName">工作稿</h2>
+            </div>
+            <div class="draft-actions">
+              <button id="saveDraftButton" class="secondary-button">保存工作稿</button>
+              <button id="stageActionButton" class="send-button">下一步</button>
+              <button id="saveFinalButton" class="secondary-button" hidden>保存终稿</button>
+            </div>
+          </div>
+          <div id="writingPhaseNotice" class="phase-notice"></div>
+          <article id="draftEditor" class="draft-editor markdown-render" contenteditable="true" role="textbox" aria-label="编辑文章草稿"></article>
+          <div id="compactLog" class="compact-log"></div>
+        </section>
+      </main>
+
+      <aside class="preview-panel">
+        <div class="preview-header">
+          <div>
+            <p class="eyebrow">Chat</p>
+            <h2 id="guidanceTitle">流程助手</h2>
+          </div>
+        </div>
+        <div id="guidanceMeta" class="preview-path">右侧对话会结合当前流程、上下文和中间文章。</div>
+        <div id="historyPanel" class="history-panel chat-history"></div>
+        <section class="composer side-composer" id="composerDropzone">
+          <div id="attachmentTray" class="attachment-tray"></div>
+          <div id="mentionMenu" class="mention-menu" hidden></div>
+          <div class="prompt-row">
+            <textarea id="promptInput" placeholder="输入反馈，或用 @ 引用文件/目录"></textarea>
+            <button id="sendButton" class="send-button">发送</button>
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <dialog id="settingsDialog" class="settings-dialog">
+      <form method="dialog" class="settings-content">
+        <div class="settings-header">
+          <div>
+            <p class="eyebrow">Settings</p>
+            <h2>API Keys</h2>
+          </div>
+          <button class="icon-button" value="close" aria-label="Close">×</button>
+        </div>
+
+        <div class="settings-grid">
+          <label>DeepSeek<input id="deepseekKey" type="password" placeholder="Use .env for local keys" /></label>
+          <label>OpenAI<input id="openaiKey" type="password" placeholder="sk-..." /></label>
+          <label>Anthropic<input id="anthropicKey" type="password" placeholder="sk-ant-..." /></label>
+          <label>Google<input id="googleKey" type="password" placeholder="AIza..." /></label>
+          <label>Tavily<input id="tavilyKey" type="password" placeholder="tvly-..." /></label>
+          <label>Firecrawl<input id="firecrawlKey" type="password" placeholder="fc-..." /></label>
+          <label>Default model<input id="defaultModel" type="text" placeholder="deepseek-chat" /></label>
+        </div>
+
+        <div class="settings-actions">
+          <span id="settingsState"></span>
+          <button id="saveSettings" class="send-button" value="default">Save</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="directoryDialog" class="directory-dialog">
+      <form method="dialog" class="directory-content">
+        <div class="settings-header">
+          <div>
+            <p class="eyebrow">Workspace</p>
+            <h2>选择工作目录</h2>
+          </div>
+          <button class="icon-button" value="close" aria-label="Close directory chooser">×</button>
+        </div>
+        <div class="directory-actions">
+          <button id="directoryHome" class="secondary-button" value="default">Home</button>
+          <button id="directoryUp" class="secondary-button" value="default">上一级</button>
+          <button id="useDirectory" class="send-button" value="default">使用此目录</button>
+        </div>
+        <div id="directoryCurrent" class="directory-current"></div>
+        <div id="directoryList" class="directory-list"></div>
+      </form>
+    </dialog>
+
+    <dialog id="styleDialog" class="settings-dialog">
+      <form method="dialog" class="settings-content">
+        <div class="settings-header">
+          <div>
+            <p class="eyebrow">Style</p>
+            <h2>导入历史文章</h2>
+          </div>
+          <button class="icon-button" value="close" aria-label="Close style setup">×</button>
+        </div>
+        <p class="settings-note">导入一次后，editAI 会长期使用你的风格指纹。你可以粘贴历史文章，或先跳过。</p>
+        <textarea id="styleSourceInput" class="style-source" placeholder="粘贴 1-5 篇历史文章，或粘贴你最有代表性的文章内容"></textarea>
+        <div class="settings-actions">
+          <span id="styleState"></span>
+          <div class="settings-button-row">
+            <button id="skipStyleButton" class="secondary-button" value="default">跳过</button>
+            <button id="saveStyleButton" class="send-button" value="default">生成风格指纹</button>
+          </div>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

@@ -1,0 +1,44 @@
+# Dependencies
+.sisyphus/
+node_modules/
+
+# Build output
+dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Lock files (use bun.lockb instead)
+package-lock.json
+yarn.lock
+
+# Environment
+.env
+.env.local
+test-injection/
+notepad.md
+oauth-success.html
+editai_note/
+.editai/
+test-results/
+output/
+
+# Project-level agent instructions (contains internal info, not for public repo)
+AGENTS.md
+
+# Claude Code project settings (may contain API keys)
+.claude/settings.json
+
+# MCP config contains Personal Access Tokens
+.mcp.json

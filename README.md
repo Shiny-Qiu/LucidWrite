@@ -1,108 +1,155 @@
-# editAI
+<p align="right">
+  <strong>English</strong> | <a href="./README.zh-cn.md">简体中文</a>
+</p>
 
-**Local AI writing workspace for research, drafting, editing, fact-checking, and content pipelines.**
+# LucidWrite
 
-editAI is a local-first web writing tool inspired by the multi-agent content workflow of newtype OS. It is not the newtype OS CLI product. newtype OS is a CLI/TUI system built on top of OpenCode; editAI focuses on a browser-based personal writing workspace that runs locally, lets you configure model keys, browse local Markdown files, attach project context, and work with AI through a clean chat interface.
+**A browser-based AI writing studio with cloud sync, user accounts, and a structured multi-stage content workflow.**
 
-## What editAI Does
+LucidWrite is a locally-run web writing tool that guides you through every stage of content creation — from topic research to a polished final draft — using AI agents at each step. User accounts and all writing data (projects, drafts, style fingerprints) are stored in Supabase with row-level security, so each user only ever sees their own content.
 
-- Provides a one-screen web writing workspace for personal local use.
-- Visualizes content modes such as research, writing, editing, fact-checking, analysis, extraction, archive, and full pipeline.
-- Supports multi-turn chat so follow-up prompts can use prior conversation context.
-- Lets you attach Markdown files or entire local directories through the file tree or `@` mentions in the composer.
-- Renders assistant Markdown in the chat, including headings, lists, tables, blockquotes, and code blocks.
-- Supports a pipeline approval flow where the user can review and edit the outline before drafting continues.
-- Stores local settings under `.newtype/web-settings.json` for compatibility with the existing runtime structure.
+## Features
 
-## Project Status
-
-This project is currently designed for local personal use. It is being shaped toward a future web product, but the first version intentionally keeps data and workspace files on the local machine.
+- **Structured writing workflow** — seven sequential stages: Topic, Outline, Draft, Refine, Fact-check, Score, Final.
+- **Real-time AI collaboration** — right-side chat modifies the left-side draft live; the AI returns the complete updated article each time.
+- **User accounts** — email-based sign-up and login powered by Supabase Auth; email confirmation required.
+- **Cloud storage with RLS** — projects, drafts, finals, and style fingerprints stored in Supabase with row-level security policies; no user can access another user's data.
+- **Style fingerprint** — import past articles so the AI learns and maintains your writing voice.
+- **Local workspace** — browse and attach local Markdown files or directories via the file tree or `@` mentions.
+- **LLM agnostic** — works with DeepSeek, OpenAI, or any OpenAI-compatible endpoint via environment variables.
 
 ## Requirements
 
-- [Bun](https://bun.sh/)
-- A DeepSeek API key, or another supported provider configured through the local settings flow
-- A local Markdown workspace directory
+| Tool | Version | Install |
+|------|---------|---------|
+| [Bun](https://bun.sh/) | ≥ 1.0 | `curl -fsSL https://bun.sh/install \| bash` |
+| Supabase project | — | [supabase.com](https://supabase.com) |
+| LLM API key | — | DeepSeek / OpenAI / compatible |
 
 ## Quick Start
 
+### 1. Clone and install
+
 ```bash
+git clone https://github.com/Shiny-Qiu/LucidWrite.git
+cd LucidWrite
 bun install
+```
+
+### 2. Set up Supabase
+
+Create a project at [supabase.com](https://supabase.com), then run the schema in **SQL Editor**:
+
+```bash
+# Copy the full SQL from supabase/schema.sql and execute it in Supabase SQL Editor
+```
+
+The schema creates five tables (`profiles`, `projects`, `drafts`, `finals`, `style_fingerprints`), enables RLS on all of them, and installs a trigger that auto-creates a profile on every new signup.
+
+### 3. Configure environment variables
+
+```bash
 cp .env.example .env
-bun run web
 ```
 
-Open:
+Edit `.env`:
 
-```text
-http://localhost:3899
-```
+```env
+# Supabase (required)
+SUPABASE_URL=https://<project_ref>.supabase.co
+SUPABASE_ANON_KEY=sb_publishable_xxxxxxxxxxxx
+SUPABASE_SERVICE_ROLE_KEY=sb_secret_xxxxxxxxxxxx
 
-If the default port is occupied:
-
-```bash
-PORT=3900 bun run web
-```
-
-## Environment Configuration
-
-For local use, configure model access in `.env`:
-
-```bash
-EDITAI_LLM_API_KEY=
+# LLM — DeepSeek example (or any OpenAI-compatible provider)
+EDITAI_LLM_API_KEY=sk-xxxxxxxxxxxx
 EDITAI_LLM_BASE_URL=https://api.deepseek.com
 EDITAI_LLM_MODEL=deepseek-chat
 EDITAI_LLM_MAX_RETRIES=3
 EDITAI_LLM_TIMEOUT_MS=60000
-
-DEEPSEEK_API_KEY=
-DEEPSEEK_BASE_URL=https://api.deepseek.com
-DEEPSEEK_MODEL=deepseek-chat
-DEEPSEEK_TIMEOUT_MS=60000
 ```
 
-Do not commit real API keys. `.env` is ignored by Git.
+### 4. Start
 
-`DEEPSEEK_*` remains supported. `EDITAI_LLM_*` is preferred for temporary switching to another OpenAI-compatible provider when a model service is busy.
+```bash
+bun run web
+```
 
-## Web Workspace
+Open **http://localhost:3899**, register an account, and start writing.
 
-The UI is organized into three focused areas:
+## Writing Workflow
 
-- Left: local workspace file tree and directory switching.
-- Center: mode tabs, agent status, conversation, and the single input composer.
-- Right: distilled agent guidance and reference direction.
+| Stage | What happens |
+|-------|-------------|
+| Topic | Interview-style conversation to lock in the article angle |
+| Outline | Generate and refine a structured outline |
+| Draft | Produce a complete first draft from the approved outline |
+| Refine | AI content analysis with inline editing on request |
+| Fact-check | Claim-by-claim verification; corrections applied on request |
+| Score | Full quality score (structure, evidence, style, clarity) |
+| Final | Last edits; save `final.md` |
 
-In the composer, type `@` to search the current workspace for Markdown files or directories. Selecting a file attaches that file; selecting a directory attaches aggregated Markdown content from that directory.
+At every stage, anything you type in the right-side chat can modify the article on the left. The AI always returns the **complete updated article** — never just a partial snippet.
 
-## Available Modes
+## Authentication Flow
 
-| Mode | Purpose |
-| --- | --- |
-| Chief | Free conversation and mode selection |
-| Research | Gather background, source notes, and content angles |
-| Write | Generate Markdown drafts |
-| Edit | Improve structure, flow, clarity, and wording |
-| Fact-check | Verify claims and flag weak sources |
-| Analyze | Apply structured analysis frameworks |
-| Extract | Clean and structure supplied content |
-| Archive | Organize or retrieve local knowledge |
-| Pipeline | Outline approval, then full content production |
+```
+Register → Supabase sends confirmation email
+         → User clicks link → redirected back to localhost:3899
+         → Token parsed automatically → logged in
+
+Login    → POST /api/auth/login → server calls Supabase Auth REST API
+         → JWT returned → stored in localStorage
+         → All subsequent API calls carry Authorization: Bearer <JWT>
+         → Server validates JWT → RLS enforces per-user data isolation
+```
+
+## Project Structure
+
+```
+src/web/
+  server.ts        # Hono server: auth endpoints + Supabase-backed API routes
+  supabase.ts      # Server-side Supabase client factory
+  deepseek.ts      # LLM client (DeepSeek / OpenAI-compatible)
+  task-runner.ts   # AI task execution engine
+  task-prompts.ts  # Per-mode prompt templates
+  public/
+    index.html     # App shell + auth gate UI
+    app.js         # Frontend state, auth, API calls
+    styles.css     # UI styles
+supabase/
+  schema.sql       # Tables + RLS policies + signup trigger
+```
+
+## Environment Variables Reference
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `SUPABASE_URL` | ✓ | Supabase project URL |
+| `SUPABASE_ANON_KEY` | ✓ | Public anon key (safe for client config endpoint) |
+| `SUPABASE_SERVICE_ROLE_KEY` | ✓ | Service role key (server-side only, bypasses RLS) |
+| `EDITAI_LLM_API_KEY` | ✓ | LLM API key |
+| `EDITAI_LLM_BASE_URL` | ✓ | LLM base URL (OpenAI-compatible) |
+| `EDITAI_LLM_MODEL` | ✓ | Model name |
+| `EDITAI_LLM_MAX_RETRIES` | — | Retry attempts on failure (default: 3) |
+| `EDITAI_LLM_TIMEOUT_MS` | — | Request timeout in ms (default: 60000) |
 
 ## Development Commands
 
 ```bash
-bun run web        # start the local web app
-bun run build      # bundle CLI/plugin/web server and static assets
-bun run typecheck  # run TypeScript checks
-bun test           # run Bun tests
+bun run web        # start the local web server
+bun run build      # build CLI / plugin / web server + static assets
+bun run typecheck  # TypeScript type check
+bun test           # run tests
 bun run clean      # remove dist/
 ```
 
-## Relationship to newtype OS
+## Security Notes
 
-editAI references newtype OS as an architectural inspiration for multi-agent content production. It does not share the same product positioning, installation path, or primary interaction model. Users should install and run editAI as this local web workspace, not as `@newtype-os/cli` or an OpenCode plugin.
+- `.env` and `.mcp.json` are git-ignored and must never be committed.
+- `SUPABASE_SERVICE_ROLE_KEY` bypasses RLS — keep it server-side only.
+- All database tables enforce RLS: `auth.uid() = user_id` on every operation.
+- Supabase Auth requires email confirmation before a user can log in.
 
 ## Repository
 
-GitHub: <https://github.com/pengcong2020520/edit-ai>
+GitHub: <https://github.com/Shiny-Qiu/LucidWrite>

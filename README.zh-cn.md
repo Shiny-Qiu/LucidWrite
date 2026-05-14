@@ -2,102 +2,154 @@
   <a href="./README.md">English</a> | <strong>简体中文</strong>
 </p>
 
-# editAI
+# LucidWrite
 
-**本地优先的 AI 写作工作台，用于调研、写作、编辑、事实核查和全流程内容生产。**
+**带云端同步、用户账号和结构化多阶段写作流程的浏览器 AI 写作工作台。**
 
-editAI 是一个本地 Web 写作工具，参考了 newtype OS 的多 Agent 内容生产思路，但它不是 newtype OS CLI 产品。newtype OS 是基于 OpenCode 二次开发的 CLI/TUI 产品；editAI 的定位是浏览器里的个人写作工作台，运行在本地，支持配置模型 Key、浏览本地 Markdown 文件、引入项目上下文，并通过对话完成内容创作。
+LucidWrite 是一个本地运行的 Web 写作工具，通过 AI Agent 引导你完成从选题到终稿的每个阶段。用户账号和所有写作数据（项目、草稿、风格指纹）存储在 Supabase 数据库，并通过行级安全策略（RLS）隔离——每个用户只能看到自己的内容。
 
-## editAI 能做什么
+## 功能特点
 
-- 提供一屏式本地写作工作台，适合个人内容生产。
-- 可视化调研、写作、编辑、核查、分析、提取、归档、全流程等模式。
-- 支持多轮对话，后续提问会结合前文上下文判断。
-- 支持通过左侧文件树或输入框 `@` 指令引用 Markdown 文件和目录。
-- 对助手输出的 Markdown 进行渲染，包括标题、列表、表格、引用和代码块。
-- 全流程模式支持先生成大纲，用户修改或确认后再继续写作。
-- 本地设置存储在 `.newtype/web-settings.json`，以兼容现有运行时结构。
-
-## 当前状态
-
-本项目当前面向个人本地使用。后续可以扩展为 Web 产品，但第一版有意保持数据和写作文件都在本地目录中。
+- **结构化写作流程** — 七个顺序阶段：选题交互 → 大纲框架 → 初稿敲定 → 内容精修 → 事实核查 → 质量评分 → 终稿敲定。
+- **实时 AI 协作** — 右侧对话实时修改左侧草稿，AI 每次返回完整更新后的文章，不只是片段。
+- **用户账号** — 基于 Supabase Auth 的邮箱注册和登录，注册需邮件确认。
+- **行级安全存储** — 项目、草稿、终稿、风格指纹均存储于 Supabase，RLS 策略确保用户间数据物理隔离。
+- **风格指纹** — 导入历史文章，让 AI 学习并保持你的写作风格。
+- **本地工作区** — 通过左侧文件树或 `@` 指令引用本地 Markdown 文件或目录作为上下文。
+- **LLM 无关** — 通过环境变量支持 DeepSeek、OpenAI 或任意 OpenAI 兼容接口。
 
 ## 环境要求
 
-- [Bun](https://bun.sh/)
-- DeepSeek API Key，或通过本地设置配置其他模型供应商
-- 一个本地 Markdown 工作目录
+| 工具 | 版本 | 安装方式 |
+|------|------|----------|
+| [Bun](https://bun.sh/) | ≥ 1.0 | `curl -fsSL https://bun.sh/install \| bash` |
+| Supabase 项目 | — | [supabase.com](https://supabase.com) |
+| LLM API Key | — | DeepSeek / OpenAI / 兼容接口 |
 
 ## 快速开始
 
+### 1. 克隆并安装依赖
+
 ```bash
+git clone https://github.com/Shiny-Qiu/LucidWrite.git
+cd LucidWrite
 bun install
+```
+
+### 2. 配置 Supabase
+
+在 [supabase.com](https://supabase.com) 创建项目后，在 **SQL Editor** 中执行建表脚本：
+
+```bash
+# 将 supabase/schema.sql 的全部内容粘贴到 Supabase SQL Editor 中执行
+```
+
+脚本会创建五张数据表（`profiles` / `projects` / `drafts` / `finals` / `style_fingerprints`），为所有表开启 RLS，并安装注册时自动创建 profile 的触发器。
+
+### 3. 配置环境变量
+
+```bash
 cp .env.example .env
+```
+
+编辑 `.env`：
+
+```env
+# Supabase（必填）
+SUPABASE_URL=https://<project_ref>.supabase.co
+SUPABASE_ANON_KEY=sb_publishable_xxxxxxxxxxxx
+SUPABASE_SERVICE_ROLE_KEY=sb_secret_xxxxxxxxxxxx
+
+# LLM 模型 — DeepSeek 示例（也支持其他 OpenAI 兼容接口）
+EDITAI_LLM_API_KEY=sk-xxxxxxxxxxxx
+EDITAI_LLM_BASE_URL=https://api.deepseek.com
+EDITAI_LLM_MODEL=deepseek-chat
+EDITAI_LLM_MAX_RETRIES=3
+EDITAI_LLM_TIMEOUT_MS=60000
+```
+
+### 4. 启动
+
+```bash
 bun run web
 ```
 
-打开：
+打开 **http://localhost:3899**，注册账号后即可开始写作。
 
-```text
-http://localhost:3899
+## 写作流程
+
+| 阶段 | 说明 |
+|------|------|
+| 选题交互 | 采访式对话，确定文章角度和核心议题 |
+| 大纲框架 | 生成并调整结构化大纲 |
+| 初稿敲定 | 基于确认后的大纲生成完整初稿 |
+| 内容精修 | AI 内容分析，按需直接修改正文 |
+| 事实核查 | 逐条核查，确认后修正正文 |
+| 质量评分 | 结构、论据、风格、清晰度全维度评分 |
+| 终稿敲定 | 最终微调，保存 `final.md` |
+
+在每个阶段，右侧对话框中的任何指令都可以修改左侧文章。AI 始终返回**完整的更新后文章**，而不是片段。
+
+## 认证流程
+
+```
+注册 → Supabase 发送确认邮件
+     → 用户点击链接 → 跳回 localhost:3899
+     → 前端自动解析 Token → 完成登录
+
+登录 → POST /api/auth/login → 服务端调用 Supabase Auth REST API
+     → 返回 JWT → 存储在 localStorage
+     → 后续所有请求携带 Authorization: Bearer <JWT>
+     → 服务端验证 JWT → RLS 执行每用户数据隔离
 ```
 
-如果默认端口被占用：
+## 项目结构
 
-```bash
-PORT=3900 bun run web
+```
+src/web/
+  server.ts        # Hono 服务端：auth 端点 + Supabase 数据库路由
+  supabase.ts      # 服务端 Supabase 客户端工厂
+  deepseek.ts      # LLM 客户端（DeepSeek / OpenAI 兼容）
+  task-runner.ts   # AI 任务执行引擎
+  task-prompts.ts  # 各模式 Prompt 模板
+  public/
+    index.html     # 应用主框架 + 登录注册 UI
+    app.js         # 前端状态、认证、API 调用
+    styles.css     # 界面样式
+supabase/
+  schema.sql       # 数据表 + RLS 策略 + 注册触发器
 ```
 
-## 环境配置
+## 环境变量说明
 
-本地使用时，在 `.env` 中配置模型：
-
-```bash
-DEEPSEEK_API_KEY=
-DEEPSEEK_BASE_URL=https://api.deepseek.com
-DEEPSEEK_MODEL=deepseek-chat
-```
-
-不要提交真实 API Key。`.env` 已被 Git 忽略。
-
-## Web 工作台
-
-界面分为三个区域：
-
-- 左侧：本地工作目录、文件树和目录切换。
-- 中间：模式切换、Agent 状态、对话和输入框。
-- 右侧：Agent 每一步建议的提炼总览，用作写作参考方向。
-
-在输入框中输入 `@` 可以搜索当前工作目录下的 Markdown 文件或目录。选择文件会把该文件作为上下文；选择目录会聚合目录下的 Markdown 内容作为上下文。
-
-## 可用模式
-
-| 模式 | 用途 |
-| --- | --- |
-| 主编 | 自由对话，并判断应使用哪种创作能力 |
-| 调研 | 搜集背景、来源说明和内容角度 |
-| 写作 | 生成 Markdown 草稿 |
-| 编辑 | 优化结构、段落、句子和措辞 |
-| 核查 | 验证事实声明，标记薄弱来源 |
-| 分析 | 使用结构化框架拆解问题 |
-| 提取 | 清洗和结构化已有内容 |
-| 归档 | 组织或检索本地知识材料 |
-| 全流程 | 先确认大纲，再完成内容生产 |
+| 变量 | 是否必填 | 说明 |
+|------|----------|------|
+| `SUPABASE_URL` | ✓ | Supabase 项目 URL |
+| `SUPABASE_ANON_KEY` | ✓ | 公开 anon key（用于客户端配置接口） |
+| `SUPABASE_SERVICE_ROLE_KEY` | ✓ | 服务角色 key（仅服务端使用，可绕过 RLS） |
+| `EDITAI_LLM_API_KEY` | ✓ | LLM API Key |
+| `EDITAI_LLM_BASE_URL` | ✓ | LLM 接口地址（OpenAI 兼容） |
+| `EDITAI_LLM_MODEL` | ✓ | 模型名称 |
+| `EDITAI_LLM_MAX_RETRIES` | — | 失败重试次数（默认 3） |
+| `EDITAI_LLM_TIMEOUT_MS` | — | 请求超时毫秒数（默认 60000） |
 
 ## 开发命令
 
 ```bash
-bun run web        # 启动本地 Web 应用
+bun run web        # 启动本地 Web 服务
 bun run build      # 构建 CLI、插件、Web 服务和静态资源
 bun run typecheck  # TypeScript 类型检查
-bun test           # 运行 Bun 测试
+bun test           # 运行测试
 bun run clean      # 删除 dist/
 ```
 
-## 与 newtype OS 的关系
+## 安全说明
 
-editAI 借鉴了 newtype OS 的多 Agent 内容生产架构，但二者不是同一个产品。editAI 的安装方式、运行方式和主要交互界面都不同。用户应按本 README 作为本地 Web 写作工作台运行，而不是按 `@newtype-os/cli` 或 OpenCode 插件的方式安装。
+- `.env` 和 `.mcp.json` 已加入 `.gitignore`，不会提交到仓库。
+- `SUPABASE_SERVICE_ROLE_KEY` 可绕过 RLS，仅在服务端使用，绝不暴露给前端。
+- 所有数据表均强制 RLS：每次操作都验证 `auth.uid() = user_id`。
+- Supabase Auth 要求邮件确认后才能登录。
 
 ## 仓库
 
-GitHub：<https://github.com/pengcong2020520/edit-ai>
+GitHub：<https://github.com/Shiny-Qiu/LucidWrite>

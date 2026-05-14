@@ -3,25 +3,33 @@ import { existsSync, mkdirSync } from "node:fs"
 import { readdir, readFile, stat } from "node:fs/promises"
 import { homedir } from "node:os"
 import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path"
+import { fileURLToPath } from "node:url"
+import { randomUUID } from "node:crypto"
 import { Hono } from "hono"
 import type { Context } from "hono"
-import { WebTaskRunner } from "./task-runner"
 import { getModeLabel, type ContentMode, type ConversationTurn } from "./task-prompts"
 import { runDeepSeekTask } from "./deepseek"
-import { randomUUID } from "node:crypto"
 import { loadDotEnv, readSettings, toPublicSettings, writeSettings, type WebSettings } from "./settings"
 import { createSupabaseUser, getPublicConfig, isSupabaseConfigured } from "./supabase"
 
 const app = new Hono()
-const runner = new WebTaskRunner()
 loadDotEnv(process.cwd())
+
+// WebTaskRunner uses @opencode-ai/sdk which is Bun-specific — load only when not on Vercel
+type RunnerType = import("./task-runner").WebTaskRunner
+let runner: RunnerType | null = null
+if (!process.env.VERCEL) {
+  const { WebTaskRunner } = await import("./task-runner")
+  runner = new WebTaskRunner()
+}
 
 const initialRootDirectory = resolve(
   process.env.VERCEL ? "/tmp/editai" : (process.env.EDITAI_WEB_ROOT ?? process.env.NEWTYPE_WEB_ROOT ?? process.cwd())
 )
 let workspaceDirectory = initialRootDirectory
-// import.meta.dir is Bun-specific; fall back to __dirname for Node.js/Vercel
-const _currentDir: string = typeof import.meta.dir === "string" ? import.meta.dir : __dirname
+// import.meta.dir is Bun-specific; use fileURLToPath for Node.js/Vercel (ESM compatible)
+const _currentDir = (import.meta as Record<string, unknown>).dir as string | undefined
+  ?? dirname(fileURLToPath(import.meta.url))
 const publicDirectory = resolve(_currentDir, "public")
 const port = Number(process.env.PORT ?? process.env.EDITAI_WEB_PORT ?? process.env.NEWTYPE_WEB_PORT ?? 3899)
 const NOTE_DIRECTORY_NAME = "editai_note"
@@ -486,10 +494,10 @@ app.get("/api/directories", async (c) => {
   })
 })
 
-app.get("/api/tasks", (c) => c.json({ tasks: runner.list() }))
+app.get("/api/tasks", (c) => c.json({ tasks: runner?.list() ?? [] }))
 
 app.get("/api/tasks/:id", (c) => {
-  const task = runner.get(c.req.param("id"))
+  const task = runner?.get(c.req.param("id"))
   if (!task) return c.json({ error: "Task not found" }, 404)
   return c.json({ task })
 })
@@ -551,7 +559,7 @@ app.post("/api/tasks", async (c) => {
   mkdirSync(taskDirectory, { recursive: true })
   const taskStat = await stat(taskDirectory)
   if (!taskStat.isDirectory()) return c.json({ error: "Project path is not a directory" }, 400)
-  const task = runner.create({
+  const task = runner!.create({
     mode,
     message: body.message ?? "",
     context: body.context,
@@ -568,7 +576,7 @@ app.post("/api/tasks/:id/approve", async (c) => {
   if (!body.outline?.trim()) {
     return c.json({ error: "Outline is required" }, 400)
   }
-  const task = await runner.approve(c.req.param("id"), body.outline)
+  const task = await runner?.approve(c.req.param("id"), body.outline)
   if (!task) return c.json({ error: "Task not found or not awaiting approval" }, 404)
   return c.json({ task })
 })

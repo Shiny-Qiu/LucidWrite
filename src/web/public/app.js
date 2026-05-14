@@ -296,8 +296,8 @@ function renderStage() {
   action.textContent = actionText[state.currentStep] || "继续"
 
   const copy = {
-    topic: "在右侧与 editAI 进行选题交互，最多 3 轮。确认选题后进入大纲框架。",
-    outline: "点击主按钮会基于已确认选题生成大纲。可直接修改，也可在右侧要求 editAI 协助调整。",
+    topic: "在右侧与 LucidWrite 进行选题交互，最多 3 轮。确认选题后进入大纲框架。",
+    outline: "点击主按钮会基于已确认选题生成大纲。可直接修改，也可在右侧要求 LucidWrite 协助调整。",
     draft: "点击主按钮会基于确认后的大纲生成初稿。你可以直接修改，确认后进入内容精修。",
     refine: "右侧会生成内容精修报告。如需修改，直接在右侧聊天提出要求。",
     fact: "右侧会生成事实核查报告。如需修改，直接在右侧聊天提出要求。",
@@ -321,13 +321,13 @@ function renderChat() {
   const panel = $("#historyPanel")
   panel.innerHTML = ""
   if (!state.chat.length) {
-    panel.innerHTML = `<div class="empty-history">从这里开始对话。editAI 会根据当前流程自动选择采访、写作、分析、核查或评分能力。</div>`
+    panel.innerHTML = `<div class="empty-history">从这里开始对话。LucidWrite 会根据当前流程自动选择采访、写作、分析、核查或评分能力。</div>`
     return
   }
   for (const item of state.chat) {
     const node = document.createElement("article")
     node.className = `side-message ${item.role}`
-    node.innerHTML = `<div class="side-message-meta">${item.role === "user" ? "你" : "editAI"} · ${steps.find((step) => step.id === item.step)?.label || ""}</div><div class="side-message-body">${renderMarkdown(item.content)}</div>`
+    node.innerHTML = `<div class="side-message-meta">${item.role === "user" ? "你" : "LucidWrite"} · ${steps.find((step) => step.id === item.step)?.label || ""}</div><div class="side-message-body">${renderMarkdown(item.content)}</div>`
     panel.appendChild(node)
   }
   panel.scrollTop = panel.scrollHeight
@@ -778,7 +778,7 @@ async function fetchFiles(dir = ".") {
 async function renderFileTree() {
   const tree = $("#fileTree")
   tree.innerHTML = ""
-  tree.appendChild(await buildTreeNode(".", "editai_note", 0))
+  tree.appendChild(await buildTreeNode(".", "lucidwrite_note", 0))
   $("#currentPath").textContent = state.notesRoot || state.workspaceRoot
 }
 
@@ -1034,7 +1034,7 @@ window.addEventListener("drop", handleDroppedFiles)
 
 // ── Session storage (localStorage, no SDK needed) ─────────────────────────
 
-const SESSION_KEY = "editai_session"
+const SESSION_KEY = "lucidwrite_session"
 
 function saveSession(session) {
   if (session) {

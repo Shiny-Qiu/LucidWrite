@@ -24,7 +24,7 @@ if (!process.env.VERCEL) {
 }
 
 const initialRootDirectory = resolve(
-  process.env.VERCEL ? "/tmp/editai" : (process.env.EDITAI_WEB_ROOT ?? process.env.NEWTYPE_WEB_ROOT ?? process.cwd())
+  process.env.VERCEL ? "/tmp/lucidwrite" : (process.env.EDITAI_WEB_ROOT ?? process.env.NEWTYPE_WEB_ROOT ?? process.cwd())
 )
 let workspaceDirectory = initialRootDirectory
 // import.meta.dir is Bun-specific; use fileURLToPath for Node.js/Vercel (ESM compatible)
@@ -32,8 +32,8 @@ const _currentDir = (import.meta as Record<string, unknown>).dir as string | und
   ?? dirname(fileURLToPath(import.meta.url))
 const publicDirectory = resolve(_currentDir, "public")
 const port = Number(process.env.PORT ?? process.env.EDITAI_WEB_PORT ?? process.env.NEWTYPE_WEB_PORT ?? 3899)
-const NOTE_DIRECTORY_NAME = "editai_note"
-const EDITAI_DIRECTORY_NAME = ".editai"
+const NOTE_DIRECTORY_NAME = "lucidwrite_note"
+const EDITAI_DIRECTORY_NAME = ".lucidwrite"
 
 const contentTypes: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -88,7 +88,7 @@ function resolveWorkspacePath(inputPath = "."): string {
 function resolveNotesPath(inputPath = "."): string {
   const resolved = resolve(getNotesDirectory(), inputPath)
   if (!isInsideNotes(resolved)) {
-    throw new Error("Path is outside editai_note")
+    throw new Error("Path is outside lucidwrite_note")
   }
   return resolved
 }
@@ -732,7 +732,7 @@ export default app
 
 // Local Bun server — not used on Vercel
 if (!process.env.VERCEL && typeof globalThis.Bun !== "undefined") {
-  console.log(`editAI running at http://localhost:${port}`)
+  console.log(`LucidWrite running at http://localhost:${port}`)
   console.log(`Workspace: ${workspaceDirectory}`)
   ;(globalThis as { Bun: { serve: (opts: { port: number; fetch: typeof app.fetch }) => void } }).Bun.serve({
     port,

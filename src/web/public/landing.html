@@ -28,7 +28,7 @@
 
     <header class="lp-nav">
       <nav class="lp-nav-inner" aria-label="主导航">
-        <a class="lp-brand" href="/landing.html" aria-label="LucidWrite 首页">
+        <a class="lp-brand" href="/" aria-label="LucidWrite 首页">
           <svg class="lp-brand-mark" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <!-- 文档主体:squircle 风格圆角 (r=6) + 右上角斜切 -->
             <path d="M8 2 H20 L30 12 V24 a6 6 0 0 1 -6 6 H8 a6 6 0 0 1 -6 -6 V8 a6 6 0 0 1 6 -6 Z" fill="currentColor"/>
@@ -54,7 +54,7 @@
         <div class="lp-nav-actions">
           <a class="secondary-button" href="https://github.com/Shiny-Qiu/LucidWrite" target="_blank" rel="noreferrer noopener">GitHub</a>
           <button class="secondary-button" type="button" data-open-login>登录</button>
-          <a class="send-button" href="/">进入工作台</a>
+          <a class="send-button" href="/app">进入工作台</a>
         </div>
       </nav>
     </header>
@@ -73,7 +73,7 @@
           LucidWrite 是一个本地运行的 AI 写作工作台。从选题到终稿，七步流程串起来，多个 agent 协作走完每一步。
         </p>
         <div class="lp-hero-cta">
-          <a class="send-button" href="/">开始写作</a>
+          <a class="send-button" href="/app">开始写作</a>
           <a class="secondary-button" href="#process">查看流程</a>
         </div>
         <p class="lp-hero-meta">本地工作区 · Markdown 输出 · LLM 可换</p>
@@ -377,7 +377,7 @@
       <section class="lp-final reveal">
         <h2>现在开始你的下一篇。</h2>
         <p>配好账号，几秒钟看到第一个选题问题。卡在哪一步，就停在哪一步。</p>
-        <a class="send-button" href="/">进入工作台</a>
+        <a class="send-button" href="/app">进入工作台</a>
       </section>
     </main>
 
@@ -419,7 +419,7 @@
         <span>LucidWrite</span>
         <span class="lp-footer-meta">
           <a href="https://github.com/Shiny-Qiu/LucidWrite" target="_blank" rel="noreferrer noopener">GitHub</a>
-          <a href="/">进入工作台</a>
+          <a href="/app">进入工作台</a>
         </span>
       </div>
     </footer>
@@ -502,7 +502,7 @@
             if (!res.ok) { errEl.textContent = data.error || "登录失败"; return }
             localStorage.setItem(SESSION_KEY, JSON.stringify(data))
             localStorage.removeItem("lucidwrite_dev")  // 清掉旧的 dev bypass,走真 session
-            window.location.href = "/"
+            window.location.href = "/app"
           } catch (err) {
             errEl.textContent = err?.message || "登录失败,请重试"
           } finally {
@@ -533,7 +533,7 @@
             if (!res.ok) { errEl.textContent = data.error || "注册失败"; return }
             if (data.access_token) {
               localStorage.setItem(SESSION_KEY, JSON.stringify(data))
-              window.location.href = "/"
+              window.location.href = "/app"
             } else {
               errEl.textContent = data.message || "注册成功！请查收确认邮件,点击链接后登录。"
               errEl.style.color = "var(--lp-text-strong)"

@@ -1,0 +1,1260 @@
+/* ============================================================
+ * LucidWrite Landing page
+ * 复用 styles.css 的 token，DESIGN.md §5 留白、§3 排印梯度
+ * ============================================================ */
+
+body.landing {
+  display: block;
+  position: relative;          /* 给 .lp-paper 当 absolute 锚点 */
+  width: 100%;
+  height: auto;
+  min-height: 100vh;
+  overflow: auto;
+  background: var(--background);
+}
+
+/* ============================================================
+ * Notebook paper + pencil — 横线背景 + canvas 接受铅笔拖动笔触
+ * 跟 LucidWrite "写作工作台" 主题强绑定。无彩色,纯 editorial。
+ * ============================================================ */
+
+/* 全局淡蓝光斑层 —— fixed 跟随 viewport,鼠标走到 paper 区外依然跟着 */
+.lp-shadow {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* paper 容器:纯定位框,不创建 stacking context(无 z-index),
+   让内部 canvas 的 z-index 在 body 上下文里直接生效 */
+.lp-paper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1200px;
+  pointer-events: none;
+}
+
+/* 两层 canvas 共享尺寸,共享底部纵向渐隐 */
+.lp-paper-bg,
+.lp-paper-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 50%, transparent 80%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 50%, transparent 80%);
+}
+
+/* 横线层:额外叠一层横向渐隐(笔记本左右页边留白),
+   两层 mask 取交集,横线只在中段满显;
+   fg canvas 不动,鼠标/铅笔笔迹依旧覆盖全宽 */
+.lp-paper-bg {
+  -webkit-mask-image:
+    linear-gradient(180deg, #000 0%, #000 50%, transparent 80%),
+    linear-gradient(90deg, transparent 0%, #000 10%, #000 90%, transparent 100%);
+  mask-image:
+    linear-gradient(180deg, #000 0%, #000 50%, transparent 80%),
+    linear-gradient(90deg, transparent 0%, #000 10%, #000 90%, transparent 100%);
+  -webkit-mask-composite: source-in;     /* WebKit 老语法 */
+  mask-composite: intersect;              /* 标准语法 */
+}
+
+/* 背景层:横线(笔扰动),沉到所有内容之下;光斑已抽到 .lp-shadow */
+.lp-paper-bg {
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* 前景层:铅笔笔迹,接收鼠标事件,显示铅笔光标 */
+.lp-paper-canvas {
+  z-index: 5;
+  pointer-events: auto;
+  cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'><g transform='rotate(-30 24 24)'><rect x='18' y='6' width='12' height='6' rx='1.5' fill='%23E8A0A0'/><rect x='18' y='12' width='12' height='3' fill='%23B0B0B8'/><rect x='18' y='15' width='12' height='20' fill='%23F0C040'/><line x1='24' y1='15' x2='24' y2='35' stroke='%23C9A040' stroke-width='0.5'/><polygon points='18,35 30,35 27,42 21,42' fill='%23F2DBAA'/><polygon points='21,42 27,42 24,46' fill='%23191919'/></g></svg>") 35 43, crosshair;
+}
+
+/* 交互元素(在 paper 区内的)单独抬到 canvas 之上,保证可点击。
+   .lp-nav 已经 sticky + z:20,自动在 canvas 之上,不用动。
+   注意:容器本身 pointer-events: none,免得空白处的长方形 hit-box 挡住
+   canvas 的 pointermove,造成"画笔画不到的隐形矩形" bug。
+   只让真正要点击的按钮 / 链接 / preview 内容恢复 auto。 */
+.lp-hero-cta,
+.lp-preview-wrap {
+  position: relative;
+  z-index: 10;
+  pointer-events: none;
+}
+.lp-hero-cta > a,
+.lp-hero-cta > button {
+  pointer-events: auto;
+}
+
+/* CTA / 链接 / 输入框上恢复正常光标 —— 在 hero 内的按钮要能正常点 */
+.lp-nav a,
+.lp-nav button,
+.lp-hero a,
+.lp-hero button,
+.lp-hero input,
+.lp-preview a,
+.lp-preview button,
+.lp-preview input {
+  cursor: pointer;
+}
+
+/* 触屏 / reduced-motion:不渲染 canvas,光标回归默认;横线仍可见作装饰 */
+@media (prefers-reduced-motion: reduce), (hover: none) {
+  .lp-paper-canvas,
+  .lp-shadow {
+    display: none;
+  }
+}
+
+/* ============================================================
+ * Login modal — 复用 styles.css 里 .auth-* 全套(品牌一致)
+ * 这里只定义 modal 自身的定位 / backdrop / close 按钮
+ * ============================================================ */
+
+.lp-auth-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.lp-auth-modal[hidden] { display: none; }
+
+.lp-auth-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(25, 25, 25, 0.45);
+  -webkit-backdrop-filter: blur(8px) saturate(120%);
+  backdrop-filter: blur(8px) saturate(120%);
+}
+
+.lp-auth-card {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  padding: 32px;
+  border: 1px solid var(--lp-border-subtle);
+  border-radius: var(--lp-radius-large);
+  background: var(--background);
+  box-shadow: 0 24px 64px rgba(25, 25, 25, 0.12);
+}
+
+.lp-auth-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: var(--lp-radius-comfortable);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--lp-text-muted);
+  transition: background 120ms ease, color 120ms ease;
+}
+.lp-auth-close:hover {
+  background: var(--lp-surface-hover);
+  color: var(--lp-text-strong);
+}
+
+html:has(body.landing) {
+  width: 100%;
+  height: auto;
+  overflow: auto;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ============================================================
+ * Sticky nav
+ * ============================================================ */
+
+.lp-nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(255, 255, 255, 0.88);
+  border-bottom: 1px solid var(--lp-border-divider);
+  -webkit-backdrop-filter: saturate(180%) blur(12px);
+  backdrop-filter: saturate(180%) blur(12px);
+}
+
+.lp-nav-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.lp-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--lp-text-strong);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.lp-brand-mark {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  color: var(--lp-text-strong);     /* 内联 SVG 用 currentColor,跟品牌字色一致 */
+  flex-shrink: 0;
+}
+
+.lp-nav-links {
+  display: flex;
+  gap: 28px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.lp-nav-links a {
+  color: var(--lp-text-muted);
+  font-size: 14px;
+  font-weight: 400;
+  transition: color 120ms ease;
+}
+
+.lp-nav-links a:hover {
+  color: var(--lp-text-strong);
+}
+
+.lp-nav-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.lp-nav-actions .send-button,
+.lp-nav-actions .secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
+  font-size: 13px;
+}
+
+/* ============================================================
+ * Hero
+ * ============================================================ */
+
+.lp-hero {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 120px 24px 64px;
+  text-align: center;
+}
+
+.lp-hero .eyebrow {
+  display: inline-block;
+  margin: 0 0 24px;
+}
+
+.lp-hero-title {
+  margin: 0;
+  font-size: 60px;
+  line-height: 1.05;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: var(--lp-text-strong);
+  word-break: keep-all;
+  text-wrap: pretty;
+}
+
+.lp-hero-title em {
+  font-style: normal;
+  color: var(--lp-text-subtle);
+  font-weight: 500;
+}
+
+.lp-hero-sub {
+  margin: 28px auto 0;
+  max-width: 640px;
+  color: var(--lp-text-muted);
+  font-size: 18px;
+  line-height: 1.6;
+}
+
+.lp-hero-cta {
+  margin-top: 40px;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.lp-hero-cta .send-button,
+.lp-hero-cta .secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  padding: 0 22px;
+  font-size: 14px;
+}
+
+.lp-hero-meta {
+  margin: 20px 0 0;
+  color: var(--lp-text-subtle);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+/* ============================================================
+ * Hero process strip — 7 steps preview
+ * ============================================================ */
+
+.lp-hero-strip {
+  max-width: 1100px;
+  margin: 80px auto 0;
+  padding: 0 24px;
+}
+
+.lp-strip-frame {
+  border: 1px solid var(--lp-border-subtle);
+  border-radius: var(--lp-radius-large);
+  padding: 28px 24px;
+  background: var(--background);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 4px;
+}
+
+.lp-strip-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: var(--lp-radius-pill);
+  background: var(--lp-bg);
+  color: var(--lp-text-strong);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.lp-strip-step .lp-strip-num {
+  color: var(--lp-text-subtle);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.lp-strip-step.is-active {
+  background: var(--lp-accent);
+  color: var(--background);
+  font-weight: 500;
+}
+
+.lp-strip-step.is-active .lp-strip-num {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.lp-strip-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 32px;
+  color: var(--lp-text-subtle);
+}
+
+.lp-strip-arrow svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ============================================================
+ * Section frame
+ * ============================================================ */
+
+.lp-section {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 96px 24px;
+}
+
+.lp-section-header {
+  max-width: 720px;
+  margin-bottom: 56px;
+}
+
+.lp-section-header .eyebrow {
+  margin: 0 0 16px;
+}
+
+.lp-section-title {
+  margin: 0;
+  font-size: 44px;
+  line-height: 1.1;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--lp-text-strong);
+  /* CJK 不在汉字之间拆词,只在空格 / 全角标点处断行,避免"输出"被劈成"输/出"。
+     text-wrap: pretty 是现代浏览器的平衡换行兜底。 */
+  word-break: keep-all;
+  text-wrap: pretty;
+}
+
+.lp-section-sub {
+  margin: 18px 0 0;
+  max-width: 560px;
+  color: var(--lp-text-muted);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+/* ============================================================
+ * Process grid — 七步
+ * grid 用 1px gap + 外层 border 做"分割线",卡内白底
+ * ============================================================ */
+
+.lp-process {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--lp-border-subtle);
+  border: 1px solid var(--lp-border-subtle);
+  border-radius: var(--lp-radius-large);
+  overflow: hidden;
+  /* 子 cell 受 overflow:hidden 裁切,阴影加在容器上 */
+  box-shadow: 0 1px 2px rgba(25, 25, 25, 0.03), 0 8px 20px rgba(25, 25, 25, 0.05);
+}
+
+/* 卡片节奏:大数字锚点 (32) → 小标签 (12) → 主体 (22) → 细节 (13)
+   留白权重也分两组:header → h3 是 group break (24),h3 → p 是 group inner (10) */
+.lp-step {
+  padding: 36px 28px;
+  background: var(--background);
+  display: flex;
+  flex-direction: column;
+  min-height: 240px;
+}
+
+.lp-step-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 24px;
+}
+
+.lp-step-index {
+  font-size: 32px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--lp-text-strong);
+}
+
+.lp-step-label {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--lp-text-subtle);
+}
+
+.lp-step h3 {
+  margin: 0 0 10px;
+  font-size: 22px;
+  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--lp-text-strong);
+  /* 卡片标题是纯 CJK 短句,没有标点 / 空格作断点 —— 让浏览器自由断行,
+     不加 keep-all 免得无处可断顶出卡片。 */
+  text-wrap: pretty;
+}
+
+.lp-step p {
+  margin: 0;
+  color: var(--lp-text-subtle);
+  font-size: 13px;
+  line-height: 1.75;
+}
+
+/* ============================================================
+ * Why grid — 三/四张卡
+ * ============================================================ */
+
+.lp-why-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.lp-why-card {
+  padding: 32px;
+  border: 1px solid var(--lp-border-subtle);
+  border-radius: var(--lp-radius-large);
+  background: var(--background);
+  box-shadow: 0 1px 2px rgba(25, 25, 25, 0.03), 0 8px 20px rgba(25, 25, 25, 0.05);
+}
+
+.lp-why-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  color: var(--lp-text-strong);
+}
+
+.lp-why-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--lp-radius-panel);
+  background: var(--lp-bg);
+  color: var(--lp-text-strong);
+}
+
+.lp-why-card-icon svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.lp-why-card h3 {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.25;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  text-wrap: pretty;
+}
+
+.lp-why-card p {
+  margin: 4px 0 0;
+  color: var(--lp-text-muted);
+  font-size: 14px;
+  line-height: 1.75;
+}
+
+/* ============================================================
+ * Spec table — 集成 / 模型 / 存储
+ * ============================================================ */
+
+.lp-spec {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--lp-border-subtle);
+  border: 1px solid var(--lp-border-subtle);
+  border-radius: var(--lp-radius-large);
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(25, 25, 25, 0.03), 0 8px 20px rgba(25, 25, 25, 0.05);
+}
+
+.lp-spec-cell {
+  padding: 28px;
+  background: var(--background);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lp-spec-label {
+  color: var(--lp-text-subtle);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.lp-spec-value {
+  color: var(--lp-text-strong);
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+.lp-spec-note {
+  margin-top: 8px;
+  color: var(--lp-text-muted);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+/* ============================================================
+ * Workspace preview — 3 列 shell 的静态视觉
+ * ============================================================ */
+
+.lp-preview-wrap {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.lp-preview {
+  position: relative;
+  border: 1px solid var(--lp-border-subtle);
+  border-radius: var(--lp-radius-large);
+  overflow: hidden;
+  background: var(--background);
+  box-shadow: 0 2px 4px rgba(25, 25, 25, 0.04), 0 16px 40px rgba(25, 25, 25, 0.06);
+}
+
+.lp-preview-chrome {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--lp-border-divider);
+  background: var(--lp-bg);
+}
+
+.lp-preview-chrome i {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--color-black-a6);
+  display: inline-block;
+}
+
+.lp-preview-chrome span {
+  margin-left: 12px;
+  color: var(--lp-text-subtle);
+  font-size: 12px;
+  font-family: var(--font-mono);
+}
+
+.lp-preview-shell {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr) 280px;
+  min-height: 480px;
+}
+
+.lp-preview-side {
+  border-right: 1px solid var(--lp-border-divider);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--background);
+}
+
+.lp-preview-side-title {
+  color: var(--lp-text-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.lp-preview-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lp-preview-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: var(--lp-radius-card);
+  color: var(--lp-text-muted);
+  font-size: 13px;
+}
+
+.lp-preview-file.is-active {
+  background: var(--lp-surface-hover);
+  color: var(--lp-text-strong);
+}
+
+.lp-preview-file-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--lp-text-subtle);
+}
+
+.lp-preview-file.is-active .lp-preview-file-dot {
+  background: var(--lp-accent);
+}
+
+.lp-preview-main {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  background: var(--background);
+}
+
+.lp-preview-process {
+  display: flex;
+  gap: 6px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--lp-border-divider);
+  overflow: hidden;
+}
+
+.lp-preview-process span {
+  height: 28px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--lp-radius-pill);
+  color: var(--lp-text-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.lp-preview-process span.is-active {
+  background: var(--lp-accent);
+  color: var(--background);
+  font-weight: 500;
+}
+
+.lp-preview-process span.is-done {
+  background: var(--lp-accent-soft);
+  color: var(--lp-text-strong);
+}
+
+.lp-preview-process span.is-done::before {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-right: 6px;
+  border-radius: 999px;
+  background: var(--lp-text-strong);
+}
+
+.lp-preview-draft-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px 0;
+}
+
+.lp-preview-draft-title {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--lp-text-strong);
+}
+
+.lp-preview-draft-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.lp-preview-pill {
+  height: 28px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--lp-radius-comfortable);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--lp-text-strong);
+  border: 1px solid var(--lp-border-subtle);
+  background: var(--background);
+}
+
+.lp-preview-pill.is-primary {
+  background: var(--lp-accent);
+  color: var(--background);
+  border-color: var(--lp-accent);
+}
+
+.lp-preview-draft {
+  padding: 16px 24px 24px;
+  overflow: hidden;
+}
+
+.lp-preview-draft h4 {
+  margin: 8px 0 8px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--lp-text-strong);
+}
+
+.lp-preview-draft p {
+  margin: 0 0 10px;
+  color: var(--foreground);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.lp-preview-draft p:nth-child(3) { width: 96%; }
+.lp-preview-draft p:nth-child(4) { width: 88%; }
+
+.lp-preview-cursor {
+  display: inline-block;
+  width: 6px;
+  height: 12px;
+  vertical-align: -2px;
+  background: var(--lp-accent);
+  margin-left: 2px;
+  animation: lp-blink 1.1s steps(1) infinite;
+}
+
+@keyframes lp-blink {
+  50% { opacity: 0; }
+}
+
+.lp-preview-chat {
+  border-left: 1px solid var(--lp-border-divider);
+  display: flex;
+  flex-direction: column;
+}
+
+.lp-preview-chat-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--lp-border-divider);
+}
+
+.lp-preview-chat-eyebrow {
+  color: var(--lp-text-subtle);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.lp-preview-chat-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--lp-text-strong);
+}
+
+.lp-preview-chat-body {
+  flex: 1;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.lp-preview-msg {
+  border: 1px solid var(--lp-border-subtle);
+  border-radius: var(--lp-radius-card);
+  padding: 10px 12px;
+  background: var(--background);
+}
+
+.lp-preview-msg.is-user {
+  background: var(--lp-bg);
+}
+
+.lp-preview-msg-meta {
+  color: var(--lp-text-subtle);
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+
+.lp-preview-msg-body {
+  color: var(--foreground);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.lp-preview-composer {
+  border-top: 1px solid var(--lp-border-divider);
+  padding: 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 56px;
+  gap: 8px;
+}
+
+.lp-preview-composer-input {
+  height: 64px;
+  border: 1px solid var(--lp-border-subtle);
+  border-radius: var(--lp-radius-card);
+  padding: 8px 10px;
+  color: var(--lp-text-subtle);
+  font-size: 12px;
+}
+
+.lp-preview-composer-btn {
+  height: 64px;
+  border-radius: var(--lp-radius-card);
+  background: var(--lp-accent);
+  color: var(--background);
+  font-size: 13px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ============================================================
+ * Pull quote — editorial 哲学陈述
+ * ============================================================ */
+
+.lp-quote {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 80px 24px;
+  text-align: center;
+}
+
+.lp-quote blockquote {
+  margin: 0;
+  font-size: 32px;
+  line-height: 1.35;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--lp-text-strong);
+}
+
+.lp-quote blockquote em {
+  font-style: normal;
+  color: var(--lp-text-subtle);
+}
+
+.lp-quote-cite {
+  display: block;
+  margin-top: 24px;
+  color: var(--lp-text-subtle);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* ============================================================
+ * FAQ
+ * ============================================================ */
+
+.lp-faq {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--lp-border-subtle);
+}
+
+.lp-faq details {
+  border-bottom: 1px solid var(--lp-border-subtle);
+}
+
+.lp-faq summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 24px 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  color: var(--lp-text-strong);
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  transition: color 120ms ease;
+}
+
+.lp-faq summary::-webkit-details-marker {
+  display: none;
+}
+
+.lp-faq summary:hover {
+  color: var(--lp-text-primary);
+}
+
+.lp-faq-icon {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--lp-text-muted);
+  transition: transform 200ms ease;
+}
+
+.lp-faq-icon svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  stroke-width: 2;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.lp-faq details[open] .lp-faq-icon {
+  transform: rotate(45deg);
+}
+
+.lp-faq-answer {
+  padding: 0 0 24px;
+  max-width: 720px;
+  color: var(--lp-text-muted);
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+/* ============================================================
+ * Reveal animation — DESIGN.md §7
+ * ============================================================ */
+
+.reveal {
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 400ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 400ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ============================================================
+ * Final CTA
+ * ============================================================ */
+
+.lp-final {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 128px 24px;
+  text-align: center;
+}
+
+.lp-final h2 {
+  margin: 0;
+  font-size: 44px;
+  line-height: 1.1;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--lp-text-strong);
+  word-break: keep-all;
+  text-wrap: pretty;
+}
+
+.lp-final p {
+  margin: 20px auto 32px;
+  max-width: 520px;
+  color: var(--lp-text-muted);
+  font-size: 16px;
+  line-height: 1.65;
+}
+
+.lp-final .send-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 48px;
+  padding: 0 28px;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+/* ============================================================
+ * Footer
+ * ============================================================ */
+
+.lp-footer {
+  border-top: 1px solid var(--lp-border-divider);
+}
+
+.lp-footer-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 28px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--lp-text-subtle);
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+
+.lp-footer a {
+  color: var(--lp-text-muted);
+  transition: color 120ms ease;
+}
+
+.lp-footer a:hover {
+  color: var(--lp-text-strong);
+}
+
+.lp-footer-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* ============================================================
+ * Responsive
+ * ============================================================ */
+
+@media (max-width: 1024px) {
+  .lp-process {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .lp-spec {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .lp-preview-shell {
+    grid-template-columns: 180px minmax(0, 1fr);
+    min-height: 420px;
+  }
+
+  .lp-preview-chat {
+    display: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .lp-nav-inner {
+    padding: 12px 16px;
+  }
+
+  .lp-preview-shell {
+    grid-template-columns: 1fr;
+    min-height: 360px;
+  }
+
+  .lp-preview-side {
+    display: none;
+  }
+
+  .lp-quote {
+    padding: 64px 20px;
+  }
+
+  .lp-quote blockquote {
+    font-size: 22px;
+    letter-spacing: -0.01em;
+  }
+
+  .lp-faq summary {
+    font-size: 15px;
+    padding: 20px 0;
+  }
+
+  .lp-faq-answer {
+    font-size: 14px;
+  }
+
+
+  .lp-nav-links {
+    display: none;
+  }
+
+  .lp-hero {
+    padding: 72px 20px 48px;
+  }
+
+  .lp-hero-title {
+    font-size: 36px;
+    letter-spacing: -0.02em;
+  }
+
+  .lp-hero-sub {
+    font-size: 16px;
+  }
+
+  .lp-hero-strip {
+    margin-top: 56px;
+    padding: 0 16px;
+  }
+
+  .lp-strip-frame {
+    padding: 20px 16px;
+  }
+
+  .lp-section {
+    padding: 64px 20px;
+  }
+
+  .lp-section-title {
+    font-size: 28px;
+    font-weight: 500;
+    letter-spacing: -0.015em;
+  }
+
+  .lp-section-sub {
+    font-size: 14px;
+    line-height: 1.65;
+    margin-top: 14px;
+  }
+
+  .lp-step h3,
+  .lp-why-card h3 {
+    font-size: 20px;
+    letter-spacing: -0.01em;
+  }
+
+  .lp-step {
+    padding: 28px 22px;
+    min-height: 0;
+  }
+
+  .lp-step-header {
+    margin-bottom: 18px;
+  }
+
+  .lp-step-index {
+    font-size: 26px;
+  }
+
+  .lp-step p {
+    font-size: 13px;
+    line-height: 1.7;
+  }
+
+  .lp-spec-value {
+    font-size: 18px;
+  }
+
+  .lp-process {
+    grid-template-columns: 1fr;
+  }
+
+  .lp-why-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .lp-final {
+    padding: 80px 20px;
+  }
+
+  .lp-final h2 {
+    font-size: 32px;
+  }
+}

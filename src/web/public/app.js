@@ -272,7 +272,7 @@ function renderProcessSteps() {
     button.classList.toggle("done", state.completedSteps.has(id))
     button.disabled = id !== state.currentStep
     button.setAttribute("aria-disabled", id !== state.currentStep ? "true" : "false")
-    button.innerHTML = `${state.completedSteps.has(id) ? "✓ " : ""}${steps.find((step) => step.id === id)?.label || id}`
+    button.textContent = steps.find((step) => step.id === id)?.label || id
   })
 }
 
@@ -840,7 +840,7 @@ function renderAttachments() {
     const chip = document.createElement("button")
     chip.className = "attachment-chip"
     chip.type = "button"
-    chip.innerHTML = `<span class="file-icon">${file.type === "directory" ? "DIR" : "MD"}</span><span>${escapeHtml(file.name)}</span><b>×</b>`
+    chip.innerHTML = `<span class="file-icon">${file.type === "directory" ? "DIR" : "MD"}</span><span>${escapeHtml(file.name)}</span><span class="chip-remove" aria-hidden="true"><svg viewBox="0 0 24 24" width="10" height="10" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>`
     chip.addEventListener("click", () => {
       state.attachments.splice(index, 1)
       renderAttachments()
@@ -1123,7 +1123,7 @@ async function registerUser(event) {
       await loadWorkspace()
     } else {
       errEl.textContent = data.message || "注册成功！请查收确认邮件，点击链接后登录。"
-      errEl.style.color = "var(--accent)"
+      errEl.style.color = "var(--lp-text-strong)"
       $("#registerPassword").value = ""
     }
   } catch (e) {
@@ -1215,7 +1215,25 @@ renderProcessSteps()
 renderStage()
 renderChat()
 
+// Dev bypass — `?dev=1` 或 localStorage.lucidwrite_dev === "1" 时跳过登录直接进工作台 shell。
+// 后端依然不认这个 fake session,API 调用会 401/404,但 UI 整体可见,用于视觉走查。
+function isDevBypass() {
+  if (new URLSearchParams(window.location.search).get("dev") === "1") {
+    localStorage.setItem("lucidwrite_dev", "1")
+    return true
+  }
+  return localStorage.getItem("lucidwrite_dev") === "1"
+}
+
 ;(async () => {
+  if (isDevBypass()) {
+    state.session = { access_token: "dev", refresh_token: "dev", user: { id: "dev-user", email: "dev@local" } }
+    const emailEl = $("#userEmail")
+    if (emailEl) emailEl.textContent = "dev@local"
+    hideAuthGate()
+    try { await loadWorkspace() } catch {}
+    return
+  }
   try {
     const authenticated = await initAuth()
     if (authenticated) {

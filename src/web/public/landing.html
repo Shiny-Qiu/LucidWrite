@@ -1,0 +1,727 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LucidWrite — 为长内容写作而生的本地工作台</title>
+    <meta
+      name="description"
+      content="LucidWrite 是一个本地运行的 AI 写作工作台，把从选题到终稿的七步流程拆解成可控的工作流。你的目录、你的文件、你的风格。"
+    />
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/landing.css" />
+  </head>
+  <body class="landing">
+    <!-- 全局淡蓝光斑 — fixed 跟 viewport,document 级 pointermove 驱动,
+         鼠标走到 paper 区外(变回普通鼠标)依然有阴影跟随 -->
+    <canvas class="lp-shadow" aria-hidden="true"></canvas>
+
+    <!-- Notebook paper + pencil — 两层 canvas:
+         bg(z:-1)只画横线,笔周围线条被扰动;
+         fg(z:5)接收鼠标事件 + 画铅笔笔迹 + 铅笔光标。
+         触屏 / reduced-motion 下两层都不渲染。 -->
+    <div class="lp-paper" aria-hidden="true">
+      <canvas class="lp-paper-bg"></canvas>
+      <canvas class="lp-paper-canvas"></canvas>
+    </div>
+
+    <header class="lp-nav">
+      <nav class="lp-nav-inner" aria-label="主导航">
+        <a class="lp-brand" href="/landing.html" aria-label="LucidWrite 首页">
+          <svg class="lp-brand-mark" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <!-- 文档主体:squircle 风格圆角 (r=6) + 右上角斜切 -->
+            <path d="M8 2 H20 L30 12 V24 a6 6 0 0 1 -6 6 H8 a6 6 0 0 1 -6 -6 V8 a6 6 0 0 1 6 -6 Z" fill="currentColor"/>
+            <!-- 折角小白三角(折叠纸的背面),内角圆滑 -->
+            <path d="M20.5 4 V10.5 a1.5 1.5 0 0 0 1.5 1.5 H28 Z" fill="#fff"/>
+            <!-- 两只窄高 pill 眼睛 -->
+            <rect x="11.3" y="13" width="2.2" height="4.2" rx="1.1" fill="#fff"/>
+            <rect x="18.5" y="13" width="2.2" height="4.2" rx="1.1" fill="#fff"/>
+            <!-- 微笑(小幅 U 弧,跨眼距宽) -->
+            <path d="M13 19.5 Q16 22 19 19.5" stroke="#fff" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+            <!-- 两条文本线:顶行长,底行短一档 -->
+            <rect x="7" y="22.5" width="18" height="1.8" rx="0.9" fill="#fff"/>
+            <rect x="9" y="25.8" width="14" height="1.8" rx="0.9" fill="#fff"/>
+          </svg>
+          <span>LucidWrite</span>
+        </a>
+        <ul class="lp-nav-links">
+          <li><a href="#process">流程</a></li>
+          <li><a href="#why">为什么</a></li>
+          <li><a href="#spec">集成</a></li>
+          <li><a href="#faq">FAQ</a></li>
+        </ul>
+        <div class="lp-nav-actions">
+          <a class="secondary-button" href="https://github.com/Shiny-Qiu/LucidWrite" target="_blank" rel="noreferrer noopener">GitHub</a>
+          <button class="secondary-button" type="button" data-open-login>登录</button>
+          <a class="send-button" href="/">进入工作台</a>
+        </div>
+      </nav>
+    </header>
+
+    <main>
+      <!-- ============================================================
+           Hero
+           ============================================================ -->
+      <section class="lp-hero">
+        <p class="eyebrow">BUILT FOR LONG-FORM WRITING</p>
+        <h1 class="lp-hero-title">
+          把杂乱的写作，<br />
+          拆解成<em>可工作的流程</em>。
+        </h1>
+        <p class="lp-hero-sub">
+          LucidWrite 是一个本地运行的 AI 写作工作台。从选题到终稿，七步流程串起来，多个 agent 协作走完每一步。
+        </p>
+        <div class="lp-hero-cta">
+          <a class="send-button" href="/">开始写作</a>
+          <a class="secondary-button" href="#process">查看流程</a>
+        </div>
+        <p class="lp-hero-meta">本地工作区 · Markdown 输出 · LLM 可换</p>
+      </section>
+
+      <!-- Workspace preview — 静态展示三栏 shell -->
+      <div class="lp-preview-wrap reveal">
+        <div class="lp-preview">
+          <div class="lp-preview-chrome" aria-hidden="true">
+            <i></i><i></i><i></i>
+            <span>lucidwrite.local · /jobs/写作教程</span>
+          </div>
+          <div class="lp-preview-shell">
+            <aside class="lp-preview-side">
+              <span class="lp-preview-side-title">目录</span>
+              <div class="lp-preview-tree">
+                <div class="lp-preview-file"><span class="lp-preview-file-dot"></span>lucidwrite_note</div>
+                <div class="lp-preview-file" style="padding-left:20px"><span class="lp-preview-file-dot"></span>写作教程</div>
+                <div class="lp-preview-file is-active" style="padding-left:32px"><span class="lp-preview-file-dot"></span>draft.md</div>
+                <div class="lp-preview-file" style="padding-left:32px"><span class="lp-preview-file-dot"></span>references.md</div>
+                <div class="lp-preview-file" style="padding-left:20px"><span class="lp-preview-file-dot"></span>面试故事</div>
+              </div>
+            </aside>
+
+            <div class="lp-preview-main">
+              <div class="lp-preview-process">
+                <span class="is-done"><span style="opacity:.5;margin-right:6px">01</span>选题</span>
+                <span class="is-done"><span style="opacity:.5;margin-right:6px">02</span>大纲</span>
+                <span class="is-active"><span style="opacity:.5;margin-right:6px">03</span>初稿</span>
+                <span><span style="opacity:.5;margin-right:6px">04</span>精修</span>
+                <span><span style="opacity:.5;margin-right:6px">05</span>核查</span>
+              </div>
+
+              <div class="lp-preview-draft-meta">
+                <div>
+                  <div class="lp-preview-chat-eyebrow">DRAFT</div>
+                  <div class="lp-preview-draft-title">写作教程</div>
+                </div>
+                <div class="lp-preview-draft-actions">
+                  <span class="lp-preview-pill">保存工作稿</span>
+                  <span class="lp-preview-pill is-primary">确认初稿，进入精修</span>
+                </div>
+              </div>
+
+              <div class="lp-preview-draft">
+                <h4>把杂乱的写作拆成可工作的流程</h4>
+                <p>写一篇有结构的长文，难的不是把字凑够，而是把"想说的"先想清楚。LucidWrite 把这件事拆成了七个阶段，每一步只做一件事。</p>
+                <p>选题阶段不写一个字，只问问题。大纲阶段不写段落，只画结构。<span class="lp-preview-cursor" aria-hidden="true"></span></p>
+              </div>
+            </div>
+
+            <aside class="lp-preview-chat">
+              <div class="lp-preview-chat-header">
+                <div class="lp-preview-chat-eyebrow">CHAT</div>
+                <div class="lp-preview-chat-title">初稿敲定</div>
+              </div>
+              <div class="lp-preview-chat-body">
+                <div class="lp-preview-msg is-user">
+                  <div class="lp-preview-msg-meta">你 · 03:21</div>
+                  <div class="lp-preview-msg-body">开头再克制一点，不要"在这个 AI 时代"这种话。</div>
+                </div>
+                <div class="lp-preview-msg">
+                  <div class="lp-preview-msg-meta">LucidWrite · 03:21</div>
+                  <div class="lp-preview-msg-body">已改。开头改成"写一篇有结构的长文，难的不是把字凑够"，直接进入论点。</div>
+                </div>
+              </div>
+              <div class="lp-preview-composer" aria-hidden="true">
+                <div class="lp-preview-composer-input">用 @ 引用文件，或写下你的反馈</div>
+                <div class="lp-preview-composer-btn">发送</div>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================
+           Process
+           ============================================================ -->
+      <section id="process" class="lp-section reveal">
+        <header class="lp-section-header">
+          <p class="eyebrow">PROCESS</p>
+          <h2 class="lp-section-title">七步流程，每一步都有专门的 agent。</h2>
+          <p class="lp-section-sub">
+            选题不收敛就不进入大纲。大纲不通过就不开始初稿。卡在哪一步，就停在哪一步，直到这一步真的可以交付。
+          </p>
+        </header>
+
+        <ol class="lp-process">
+          <li class="lp-step">
+            <header class="lp-step-header"><span class="lp-step-index">01</span><span class="lp-step-label">选题交互</span></header>
+            <h3>把模糊的想法磨成可写的角度</h3>
+            <p>不限轮次的选题对话，最多 3 轮收敛。AI 会反问，把"想写点什么"逼成"具体写什么"。</p>
+          </li>
+          <li class="lp-step">
+            <header class="lp-step-header"><span class="lp-step-index">02</span><span class="lp-step-label">大纲框架</span></header>
+            <h3>把选题拆成可执行的结构</h3>
+            <p>基于已确认的选题生成大纲。直接修改，或要求 AI 协助调整。结构不通过，不进入初稿。</p>
+          </li>
+          <li class="lp-step">
+            <header class="lp-step-header"><span class="lp-step-index">03</span><span class="lp-step-label">初稿敲定</span></header>
+            <h3>基于大纲一气呵成</h3>
+            <p>从结构到文字。右侧聊天可以随时改左侧草稿，AI 每次返回完整版本，不做局部 patch。</p>
+          </li>
+          <li class="lp-step">
+            <header class="lp-step-header"><span class="lp-step-index">04</span><span class="lp-step-label">内容精修</span></header>
+            <h3>系统先给出精修报告</h3>
+            <p>逻辑断点、表述冗余、段落节奏。先列清单，再决定改哪些。不喜欢的改动，直接驳回。</p>
+          </li>
+          <li class="lp-step">
+            <header class="lp-step-header"><span class="lp-step-index">05</span><span class="lp-step-label">事实核查</span></header>
+            <h3>引用、数据、人名地点逐一对照</h3>
+            <p>独立的核查阶段。AI 不会替你判断"应该是这样"，而是把每一处可疑的地方挑出来给你看。</p>
+          </li>
+          <li class="lp-step">
+            <header class="lp-step-header"><span class="lp-step-index">06</span><span class="lp-step-label">质量评分</span></header>
+            <h3>对全文打分，合格再进终稿</h3>
+            <p>多维度评分。合格自动进入终稿；不合格也可以手动强推，但你会知道自己绕开了哪一关。</p>
+          </li>
+          <li class="lp-step">
+            <header class="lp-step-header"><span class="lp-step-index">07</span><span class="lp-step-label">终稿敲定</span></header>
+            <h3>final.md 输出，draft.md 留作工作稿</h3>
+            <p>最后微调后保存 final.md。原始草稿继续保留，所有改动都在你的目录下，可以直接 git diff。</p>
+          </li>
+          <li class="lp-step">
+            <header class="lp-step-header"><span class="lp-step-index">∞</span><span class="lp-step-label">loop</span></header>
+            <h3>任意一步都能回头</h3>
+            <p>核查阶段发现选题立不住，可以回 01。质量评分不过，可以回 04。流程是顺序的，不是单向的。</p>
+          </li>
+        </ol>
+      </section>
+
+      <!-- ============================================================
+           Pull quote
+           ============================================================ -->
+      <section class="lp-quote reveal">
+        <blockquote>
+          AI 替你写完一篇文章很容易。<br />
+          <em>难的是，它不替你想清楚你要写什么。</em>
+        </blockquote>
+        <span class="lp-quote-cite">— Why LucidWrite exists</span>
+      </section>
+
+      <!-- ============================================================
+           Why
+           ============================================================ -->
+      <section id="why" class="lp-section reveal">
+        <header class="lp-section-header">
+          <p class="eyebrow">WHY LUCIDWRITE</p>
+          <h2 class="lp-section-title">不是另一个"AI 帮你写一篇"的工具。</h2>
+          <p class="lp-section-sub">
+            LucidWrite 假设你想自己写，只是需要一个能拆解工作流、记得上下文、不会把控制权抢走的工作台。
+          </p>
+        </header>
+
+        <div class="lp-why-grid">
+          <article class="lp-why-card">
+            <div class="lp-why-card-header">
+              <span class="lp-why-card-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 10v6m11-11h-6m-10 0H1m17.5-6.5l-4.2 4.2m-4.6 4.6l-4.2 4.2m0-13l4.2 4.2m4.6 4.6l4.2 4.2"/></svg>
+              </span>
+              <h3>多 agent 调度</h3>
+            </div>
+            <p>选题、采访、写作、核查、评分各司其职。每一阶段调度对应能力，不是一个万能 prompt 走到底。</p>
+          </article>
+
+          <article class="lp-why-card">
+            <div class="lp-why-card-header">
+              <span class="lp-why-card-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              </span>
+              <h3>本地工作区</h3>
+            </div>
+            <p>草稿、终稿、附件都在你指定的目录下。Markdown 文件可见可控，可以直接 git commit 或外部编辑。</p>
+          </article>
+
+          <article class="lp-why-card">
+            <div class="lp-why-card-header">
+              <span class="lp-why-card-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4z"/></svg>
+              </span>
+              <h3>风格指纹</h3>
+            </div>
+            <p>导入 1-5 篇历史文章，LucidWrite 学一次，长期沿用你的语气、节奏、用词。不需要每次重新喂例子。</p>
+          </article>
+
+          <article class="lp-why-card">
+            <div class="lp-why-card-header">
+              <span class="lp-why-card-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+              </span>
+              <h3>LLM 可换</h3>
+            </div>
+            <p>DeepSeek、OpenAI、Anthropic、Google，任何 OpenAI 兼容的端点都行。模型决策权留给你，不绑定。</p>
+          </article>
+        </div>
+      </section>
+
+      <!-- ============================================================
+           Spec
+           ============================================================ -->
+      <section id="spec" class="lp-section reveal">
+        <header class="lp-section-header">
+          <p class="eyebrow">UNDER THE HOOD</p>
+          <h2 class="lp-section-title">本地启动，云端同步，Markdown 输出。</h2>
+        </header>
+
+        <div class="lp-spec">
+          <div class="lp-spec-cell">
+            <span class="lp-spec-label">Runtime</span>
+            <span class="lp-spec-value">Bun · Hono</span>
+            <span class="lp-spec-note">浏览器访问本地端口，服务端只跑在你机器上。</span>
+          </div>
+          <div class="lp-spec-cell">
+            <span class="lp-spec-label">Storage</span>
+            <span class="lp-spec-value">Supabase · Row-Level Security</span>
+            <span class="lp-spec-note">账号、项目、草稿、风格指纹云端同步，每个用户只看得到自己的数据。</span>
+          </div>
+          <div class="lp-spec-cell">
+            <span class="lp-spec-label">Models</span>
+            <span class="lp-spec-value">DeepSeek · OpenAI · Compatible</span>
+            <span class="lp-spec-note">在设置里填 API key，或走 .env。模型怎么选，你说了算。</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================
+           FAQ
+           ============================================================ -->
+      <section id="faq" class="lp-section">
+        <header class="lp-section-header">
+          <p class="eyebrow">FAQ</p>
+          <h2 class="lp-section-title">常见问题。</h2>
+        </header>
+
+        <div class="lp-faq">
+          <details class="reveal">
+            <summary>
+              我的写作数据存在哪里?
+              <span class="lp-faq-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+            </summary>
+            <div class="lp-faq-answer">
+              Markdown 文件(draft.md / final.md / references)在你本地的工作目录下，可以直接 git 管理。项目元信息、风格指纹、账号通过 Supabase 同步到云端，每个用户走 Row-Level Security，只看得到自己的数据。
+            </div>
+          </details>
+
+          <details class="reveal">
+            <summary>
+              能完全离线用吗?
+              <span class="lp-faq-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+            </summary>
+            <div class="lp-faq-answer">
+              本地服务跑在你机器上，但调用 LLM 需要联网。如果接入本地模型(Ollama 之类的 OpenAI 兼容端点)，就可以真正离线。
+            </div>
+          </details>
+
+          <details class="reveal">
+            <summary>
+              可以换 Claude / GPT-4 / 别的模型吗?
+              <span class="lp-faq-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+            </summary>
+            <div class="lp-faq-answer">
+              可以。设置里填 API key，或走 .env。任何 OpenAI 兼容的端点都行 —— DeepSeek、OpenAI、Anthropic、Google、Together、本地推理服务等。
+            </div>
+          </details>
+
+          <details class="reveal">
+            <summary>
+              写到一半能换模型吗?
+              <span class="lp-faq-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+            </summary>
+            <div class="lp-faq-answer">
+              能。每一阶段独立调用，可以选题用便宜模型，核查换强模型。流程不会因为换模型断掉，因为上下文都从你的 draft.md 和聊天记录读回来。
+            </div>
+          </details>
+
+          <details class="reveal">
+            <summary>
+              风格指纹会泄露我的原文吗?
+              <span class="lp-faq-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+            </summary>
+            <div class="lp-faq-answer">
+              风格指纹是抽象后的摘要(语气、节奏、用词偏好等)，不存原文。导入历史文章时原文也只在生成指纹的那次请求里送给模型，生成完不留底。
+            </div>
+          </details>
+
+          <details class="reveal">
+            <summary>
+              需要会写代码吗?
+              <span class="lp-faq-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+            </summary>
+            <div class="lp-faq-answer">
+              安装一次要会跑两条命令(<code>bun install</code> 和 <code>bun run web</code>)。之后日常用就是浏览器，跟用别的网页工具没区别。
+            </div>
+          </details>
+        </div>
+      </section>
+
+      <!-- ============================================================
+           Final CTA
+           ============================================================ -->
+      <section class="lp-final reveal">
+        <h2>现在开始你的下一篇。</h2>
+        <p>配好账号，几秒钟看到第一个选题问题。卡在哪一步，就停在哪一步。</p>
+        <a class="send-button" href="/">进入工作台</a>
+      </section>
+    </main>
+
+    <!-- ============================================================
+         Login modal — 复用 styles.css 里 .auth-* 全套(品牌一致)
+         登录成功后写 lucidwrite_session 然后跳 /,等同于直接走原 auth gate
+         ============================================================ -->
+    <div class="lp-auth-modal" hidden role="dialog" aria-modal="true" aria-labelledby="lpAuthTitle">
+      <div class="lp-auth-backdrop" data-close-login></div>
+      <div class="lp-auth-card" role="document">
+        <button class="lp-auth-close" type="button" data-close-login aria-label="关闭">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+        <div class="auth-brand">
+          <p class="eyebrow">LucidWrite</p>
+          <h1 id="lpAuthTitle">Writing Studio</h1>
+        </div>
+        <div class="auth-tabs">
+          <button class="auth-tab active" data-tab="login" type="button">登录</button>
+          <button class="auth-tab" data-tab="register" type="button">注册</button>
+        </div>
+        <div id="lpLoginForm" class="auth-form">
+          <label>邮箱<input id="lpLoginEmail" type="email" placeholder="your@email.com" autocomplete="email" /></label>
+          <label>密码<input id="lpLoginPassword" type="password" placeholder="至少 6 位" autocomplete="current-password" /></label>
+          <div id="lpLoginError" class="auth-error"></div>
+          <button id="lpLoginButton" type="button" class="send-button auth-submit">登录</button>
+        </div>
+        <div id="lpRegisterForm" class="auth-form" hidden>
+          <label>邮箱<input id="lpRegisterEmail" type="email" placeholder="your@email.com" autocomplete="email" /></label>
+          <label>密码<input id="lpRegisterPassword" type="password" placeholder="至少 6 位" autocomplete="new-password" /></label>
+          <div id="lpRegisterError" class="auth-error"></div>
+          <button id="lpRegisterButton" type="button" class="send-button auth-submit">注册</button>
+        </div>
+      </div>
+    </div>
+
+    <footer class="lp-footer">
+      <div class="lp-footer-inner">
+        <span>LucidWrite</span>
+        <span class="lp-footer-meta">
+          <a href="https://github.com/Shiny-Qiu/LucidWrite" target="_blank" rel="noreferrer noopener">GitHub</a>
+          <a href="/">进入工作台</a>
+        </span>
+      </div>
+    </footer>
+
+    <script>
+      // 滚动入场 — DESIGN.md §7。prefers-reduced-motion 下直接显形，不动。
+      (function () {
+        const targets = document.querySelectorAll(".reveal")
+        if (!targets.length) return
+        const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        if (reduced || !("IntersectionObserver" in window)) {
+          targets.forEach((el) => el.classList.add("is-visible"))
+          return
+        }
+        const io = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              if (entry.isIntersecting) {
+                entry.target.classList.add("is-visible")
+                io.unobserve(entry.target)
+              }
+            })
+          },
+          { rootMargin: "0px 0px -10% 0px", threshold: 0.05 }
+        )
+        targets.forEach((el) => io.observe(el))
+      })()
+
+      // Login modal — open/close + tab switch + 调 /api/auth/login & register
+      // 成功后写 lucidwrite_session 然后跳 /,等同于走原 auth gate
+      ;(function () {
+        const modal = document.querySelector(".lp-auth-modal")
+        if (!modal) return
+        const SESSION_KEY = "lucidwrite_session"
+        const m = (sel) => modal.querySelector(sel)
+
+        function open() {
+          modal.hidden = false
+          document.body.style.overflow = "hidden"
+          setTimeout(() => m("#lpLoginEmail")?.focus(), 30)
+        }
+        function close() {
+          modal.hidden = true
+          document.body.style.overflow = ""
+        }
+
+        document.querySelectorAll("[data-open-login]").forEach((b) => b.addEventListener("click", open))
+        document.querySelectorAll("[data-close-login]").forEach((b) => b.addEventListener("click", close))
+        document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !modal.hidden) close() })
+
+        modal.querySelectorAll(".auth-tab").forEach((tab) => {
+          tab.addEventListener("click", () => {
+            modal.querySelectorAll(".auth-tab").forEach((t) => t.classList.remove("active"))
+            tab.classList.add("active")
+            const isLogin = tab.dataset.tab === "login"
+            m("#lpLoginForm").hidden = !isLogin
+            m("#lpRegisterForm").hidden = isLogin
+            setTimeout(() => modal.querySelector(isLogin ? "#lpLoginEmail" : "#lpRegisterEmail")?.focus(), 20)
+          })
+        })
+
+        async function loginUser(e) {
+          e?.preventDefault()
+          const email = m("#lpLoginEmail").value.trim()
+          const password = m("#lpLoginPassword").value.trim()
+          const errEl = m("#lpLoginError")
+          errEl.textContent = ""
+          errEl.style.color = ""
+          if (!email || !password) { errEl.textContent = "请填写邮箱和密码"; return }
+          const btn = m("#lpLoginButton")
+          btn.disabled = true
+          btn.textContent = "登录中…"
+          try {
+            const res = await fetch("/api/auth/login", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ email, password }),
+            })
+            const data = await res.json()
+            if (!res.ok) { errEl.textContent = data.error || "登录失败"; return }
+            localStorage.setItem(SESSION_KEY, JSON.stringify(data))
+            localStorage.removeItem("lucidwrite_dev")  // 清掉旧的 dev bypass,走真 session
+            window.location.href = "/"
+          } catch (err) {
+            errEl.textContent = err?.message || "登录失败,请重试"
+          } finally {
+            btn.disabled = false
+            btn.textContent = "登录"
+          }
+        }
+
+        async function registerUser(e) {
+          e?.preventDefault()
+          const email = m("#lpRegisterEmail").value.trim()
+          const password = m("#lpRegisterPassword").value.trim()
+          const errEl = m("#lpRegisterError")
+          errEl.textContent = ""
+          errEl.style.color = ""
+          if (!email || !password) { errEl.textContent = "请填写邮箱和密码"; return }
+          if (password.length < 6) { errEl.textContent = "密码至少需要 6 位"; return }
+          const btn = m("#lpRegisterButton")
+          btn.disabled = true
+          btn.textContent = "注册中…"
+          try {
+            const res = await fetch("/api/auth/register", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ email, password }),
+            })
+            const data = await res.json()
+            if (!res.ok) { errEl.textContent = data.error || "注册失败"; return }
+            if (data.access_token) {
+              localStorage.setItem(SESSION_KEY, JSON.stringify(data))
+              window.location.href = "/"
+            } else {
+              errEl.textContent = data.message || "注册成功！请查收确认邮件,点击链接后登录。"
+              errEl.style.color = "var(--lp-text-strong)"
+              m("#lpRegisterPassword").value = ""
+            }
+          } catch (err) {
+            errEl.textContent = err?.message || "注册失败,请重试"
+          } finally {
+            btn.disabled = false
+            btn.textContent = "注册"
+          }
+        }
+
+        m("#lpLoginButton").addEventListener("click", loginUser)
+        m("#lpLoginPassword").addEventListener("keydown", (e) => { if (e.key === "Enter") loginUser(e) })
+        m("#lpRegisterButton").addEventListener("click", registerUser)
+        m("#lpRegisterPassword").addEventListener("keydown", (e) => { if (e.key === "Enter") registerUser(e) })
+      })()
+
+      // Tri-canvas pencil + paper + 全局光斑:
+      //   - shadow canvas: fixed viewport,document.pointermove 驱动,
+      //     用 clientX/Y 全局跟,鼠标走到 paper 区外也跟随
+      //   - bg canvas:    paper 区内画横线,笔周围线条被高斯扰动
+      //   - fg canvas:    paper 区内接收 pointermove,画铅笔笔迹 + 铅笔光标
+      // 触屏 / reduced-motion 下三层都不挂。
+      ;(function () {
+        const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        const hasMouse = window.matchMedia("(hover: hover) and (pointer: fine)").matches
+        if (reduced || !hasMouse) return
+
+        const shadow = document.querySelector(".lp-shadow")
+        const bg = document.querySelector(".lp-paper-bg")
+        const fg = document.querySelector(".lp-paper-canvas")
+        if (!shadow || !bg || !fg) return
+        const shadowCtx = shadow.getContext("2d")
+        const bgCtx = bg.getContext("2d")
+        const fgCtx = fg.getContext("2d")
+        const dpr = window.devicePixelRatio || 1
+
+        function resize() {
+          for (const c of [bg, fg]) {
+            const rect = c.getBoundingClientRect()
+            c.width = rect.width * dpr
+            c.height = rect.height * dpr
+            c.getContext("2d").setTransform(dpr, 0, 0, dpr, 0, 0)
+          }
+          // shadow:viewport 尺寸(fixed),resize / 滚动条变化时跟着调
+          shadow.width = window.innerWidth * dpr
+          shadow.height = window.innerHeight * dpr
+          shadowCtx.setTransform(dpr, 0, 0, dpr, 0, 0)
+        }
+        resize()
+        window.addEventListener("resize", resize)
+
+        // —— 鼠标状态 ——
+        // paper-local(offsetX/Y):线条扰动 + 笔迹
+        let rawX = -9999, rawY = -9999
+        let cursorOn = false
+        // global viewport(clientX/Y):光斑滞后跟随
+        let gRawX = -9999, gRawY = -9999
+        let gSoftX = -9999, gSoftY = -9999
+        let gOn = false
+
+        // 笔迹 trail
+        const trail = []
+        const FADE_MS = 1200
+        const MAX_POINTS = 180
+        const MAX_ALPHA = 0.35
+        const GAP_MS = 80
+        const GAP_PX = 60
+
+        // 全局光斑追踪:document 级,viewport 坐标
+        document.addEventListener("pointermove", (e) => {
+          gRawX = e.clientX
+          gRawY = e.clientY
+          gOn = true
+          if (gSoftX < -1000) { gSoftX = gRawX; gSoftY = gRawY }
+        })
+        // 鼠标离开窗口 → 关掉光斑(下一帧 clearRect 后就消失)
+        document.addEventListener("mouseleave", () => { gOn = false })
+        window.addEventListener("blur", () => { gOn = false })
+
+        // paper-local 追踪:仅用于线条扰动 + 笔迹
+        fg.addEventListener("pointermove", (e) => {
+          rawX = e.offsetX
+          rawY = e.offsetY
+          cursorOn = true
+
+          const now = performance.now()
+          const last = trail.length ? trail[trail.length - 1] : null
+          const dc = !last
+            || (now - last.t) > GAP_MS
+            || Math.hypot(rawX - last.x, rawY - last.y) > GAP_PX
+          trail.push({ x: rawX, y: rawY, t: now, dc })
+          if (trail.length > MAX_POINTS) trail.shift()
+        })
+        fg.addEventListener("pointerenter", () => { cursorOn = true })
+        fg.addEventListener("pointerleave", () => { cursorOn = false })
+
+        // —— Shadow:单层极轻冷灰(对齐 DESIGN.md gray-300 #d1d5db 色温)——
+        // 多层叠加会产生干涉环,单层 + 2 个 colorStop 最干净
+        function renderShadow() {
+          shadowCtx.clearRect(0, 0, window.innerWidth, window.innerHeight)
+          if (!gOn || gSoftX < -1000) return
+          const w = window.innerWidth, h = window.innerHeight
+          const g = shadowCtx.createRadialGradient(gSoftX, gSoftY, 0, gSoftX, gSoftY, 200)
+          g.addColorStop(0, "rgba(200, 205, 210, 0.28)")
+          g.addColorStop(1, "rgba(200, 205, 210, 0)")
+          shadowCtx.fillStyle = g
+          shadowCtx.fillRect(0, 0, w, h)
+        }
+
+        // —— BG:横线(笔周围被轻轻推开)——
+        const LINE_GAP = 32
+        const LINE_COLOR = "rgba(220, 220, 220, 0.45)"
+        const PERTURB_RADIUS_X = 160    // 横向影响范围
+        const PERTURB_RADIUS_Y = 130    // 纵向影响范围(约 4 条线)
+        const PERTURB_MAX = 8            // 最大位移(回到温和档,8px)
+
+        function renderBg() {
+          const rect = bg.getBoundingClientRect()
+          bgCtx.clearRect(0, 0, rect.width, rect.height)
+          bgCtx.strokeStyle = LINE_COLOR
+          bgCtx.lineWidth = 1
+          for (let y = LINE_GAP; y < rect.height; y += LINE_GAP) {
+            bgCtx.beginPath()
+            const dy = y - rawY
+            const dyAbs = Math.abs(dy)
+
+            if (!cursorOn || dyAbs > PERTURB_RADIUS_Y) {
+              bgCtx.moveTo(0, y)
+              bgCtx.lineTo(rect.width, y)
+            } else {
+              // smoothstep:边界处 yFactor 自然衰减到 0,不会硬切回直线
+              const tY = dyAbs / PERTURB_RADIUS_Y
+              const yFactor = 1 - tY * tY * (3 - 2 * tY)
+              const dir = dy < 0 ? -1 : 1
+              const segments = 64
+              bgCtx.moveTo(0, y)
+              for (let i = 1; i <= segments; i++) {
+                const x = (rect.width * i) / segments
+                const dx = x - rawX
+                const xFalloff = Math.exp(-(dx * dx) / (PERTURB_RADIUS_X * PERTURB_RADIUS_X * 0.45))
+                const dispY = y + dir * PERTURB_MAX * yFactor * xFalloff
+                bgCtx.lineTo(x, dispY)
+              }
+            }
+            bgCtx.stroke()
+          }
+        }
+
+        // —— FG:铅笔笔迹 ——
+        function renderFg(now) {
+          const rect = fg.getBoundingClientRect()
+          fgCtx.clearRect(0, 0, rect.width, rect.height)
+
+          while (trail.length && (now - trail[0].t) > FADE_MS) trail.shift()
+          if (trail.length < 2) return
+
+          fgCtx.lineWidth = 1.4
+          fgCtx.lineCap = "round"
+          fgCtx.lineJoin = "round"
+          for (let i = 1; i < trail.length; i++) {
+            if (trail[i].dc) continue
+            const age = now - trail[i].t
+            const alpha = Math.max(0, MAX_ALPHA * (1 - age / FADE_MS))
+            if (alpha < 0.005) continue
+            fgCtx.strokeStyle = `rgba(25, 25, 25, ${alpha.toFixed(3)})`
+            fgCtx.beginPath()
+            fgCtx.moveTo(trail[i - 1].x, trail[i - 1].y)
+            fgCtx.lineTo(trail[i].x, trail[i].y)
+            fgCtx.stroke()
+          }
+        }
+
+        function tick(now) {
+          // 全局光斑滞后跟随 viewport 鼠标
+          if (gOn) {
+            gSoftX += (gRawX - gSoftX) * 0.15
+            gSoftY += (gRawY - gSoftY) * 0.15
+          }
+          renderShadow()
+          renderBg()
+          renderFg(now)
+          requestAnimationFrame(tick)
+        }
+        requestAnimationFrame(tick)
+      })()
+    </script>
+  </body>
+</html>

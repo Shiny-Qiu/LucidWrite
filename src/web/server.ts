@@ -40,6 +40,20 @@ const contentTypes: Record<string, string> = {
   ".css": "text/css; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
   ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".gif": "image/gif",
+  ".ico": "image/x-icon",
+  ".avif": "image/avif",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+  ".ttf": "font/ttf",
+  ".otf": "font/otf",
+  ".json": "application/json; charset=utf-8",
+  ".txt": "text/plain; charset=utf-8",
+  ".map": "application/json; charset=utf-8",
 }
 
 const ignoredDirectoryNames = new Set(["node_modules", "dist", ".git"])
@@ -728,7 +742,10 @@ app.get("*", async (c) => {
   })
 })
 
-export default app
+// On Vercel, Bun's serverless adapter consumes `export default app`. Locally we run our own
+// Bun.serve() below, so we hide the default export from Bun's auto-detect (any object with a
+// `fetch` property triggers it) to avoid a second listener fighting for port 3000.
+export default (process.env.VERCEL ? app : {})
 
 // Local Bun server — not used on Vercel
 if (!process.env.VERCEL && typeof globalThis.Bun !== "undefined") {

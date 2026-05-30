@@ -79,7 +79,7 @@ export function buildTaskPrompt(input: BuildPromptInput): string {
     case "research":
       return `You are running the web equivalent of \`nt research [topic]\`.
 
-Research the topic below through the editAI agent workflow. Use researcher for external intelligence and fact-checker for source verification when factual claims or dated information appear.
+Research the topic below through the LucidWrite agent workflow. Use researcher for external intelligence and fact-checker for source verification when factual claims or dated information appear.
 
 Deliver Markdown with: executive summary, key findings, source notes, potential content angles, gaps, and quality scores.
 
@@ -210,7 +210,7 @@ ${message}${context}`
 
     case "chat":
     default:
-      return `You are Chief in the editAI web writing workspace. Treat this as a conversation with a personal content creation platform user. Select the right editAI mode internally when helpful.
+      return `You are Chief in the LucidWrite web writing workspace. Treat this as a conversation with a personal content creation platform user. Select the right LucidWrite mode internally when helpful.
 
 When the user is starting from an empty article, first clarify the writing goal if necessary. If there is enough information, coordinate the appropriate expert agents internally and produce a first Markdown draft. If the prompt asks for an initial draft, return a clear \`## 文章草稿\` section containing the complete editable draft.
 
@@ -239,7 +239,7 @@ ${input.message.trim()}${addSharedContext(input)}`
 export function buildPipelineApprovalPrompt(outline: string): string {
   return `The user has approved or revised the pipeline outline below.
 
-Continue the full editAI content pipeline now:
+Continue the full LucidWrite content pipeline now:
 Research -> Analyze -> Write -> Fact-check -> Edit.
 
 Use the approved outline as the source of truth. Return the final Markdown deliverable, source notes, fact-check summary, quality scores, and a suggested file path.

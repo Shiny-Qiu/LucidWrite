@@ -1,5 +1,5 @@
 -- ============================================================
--- editAI — Supabase schema + Row Level Security
+-- LucidWrite — Supabase schema + Row Level Security
 -- Run this in the Supabase SQL editor to initialise the database.
 -- ============================================================
 

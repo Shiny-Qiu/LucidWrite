@@ -283,7 +283,7 @@ export default async function handler(req: Request): Promise<Response> {
           model,
           temperature: 0.5,
           messages: [
-            { role: "system", content: "You are editAI, an AI writing workspace assistant. When you modify an article, always put the complete updated article in a section starting with ## 文章草稿. Put your explanation in ## 对话回复. Never mix article content with commentary." },
+            { role: "system", content: "You are LucidWrite, an AI writing workspace assistant. When you modify an article, always put the complete updated article in a section starting with ## 文章草稿. Put your explanation in ## 对话回复. Never mix article content with commentary." },
             ...history,
             { role: "user", content: body.message },
           ],

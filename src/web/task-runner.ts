@@ -150,7 +150,7 @@ export class WebTaskRunner {
       task.server = runtime.server
 
       const sessionRes = await runtime.client.session.create({
-        body: { title: `editAI: ${task.label}` },
+        body: { title: `LucidWrite: ${task.label}` },
       })
       const sessionID = sessionRes.data?.id
       if (!sessionID) {

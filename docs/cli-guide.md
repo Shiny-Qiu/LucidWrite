@@ -1,10 +1,10 @@
-# Newtype-Profile CLI Guide
+# LucidWrite CLI Guide
 
-This document provides a comprehensive guide to using the Newtype-Profile CLI tools.
+This document provides a comprehensive guide to using the LucidWrite CLI tools.
 
 ## 1. Overview
 
-Newtype-Profile provides CLI tools accessible via the `bunx newtype-profile` command. The CLI supports various features including plugin installation, environment diagnostics, and session execution.
+LucidWrite provides CLI tools accessible via the `bunx newtype-profile` command. The CLI supports various features including plugin installation, environment diagnostics, and session execution.
 
 ```bash
 # Basic execution (displays help)
@@ -30,7 +30,7 @@ npx newtype-profile
 
 ## 3. `install` - Interactive Setup Wizard
 
-An interactive installation tool for initial Oh-My-OpenCode setup. Provides a beautiful TUI (Text User Interface) based on `@clack/prompts`.
+An interactive installation tool for initial LucidWrite setup. Provides a beautiful TUI (Text User Interface) based on `@clack/prompts`.
 
 ### Usage
 
@@ -56,7 +56,7 @@ bunx oh-my-opencode install
 
 ## 4. `doctor` - Environment Diagnostics
 
-Diagnoses your environment to ensure Newtype-Profile is functioning correctly. Performs 17+ health checks.
+Diagnoses your environment to ensure LucidWrite is functioning correctly. Performs 17+ health checks.
 
 ### Usage
 
@@ -89,7 +89,7 @@ bunx oh-my-opencode doctor
 newtype-profile doctor
 
 ┌──────────────────────────────────────────────────┐
-│  Newtype-Profile Doctor                          │
+│  LucidWrite Doctor                          │
 └──────────────────────────────────────────────────┘
 
 Installation

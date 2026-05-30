@@ -1,12 +1,12 @@
 # LucidWrite
 
-> 多运行时 AI 写作与 OpenCode 增强工程：浏览器写作台、OpenCode 插件、Claude Code 兼容 Hooks、MCP/工具适配、Agent 编排、CLI 诊断与安装工具。
+> LucidWrite 是一个面向 AI 写作和 AI 编程工作流的多运行时 harness 工程：它同时提供浏览器写作工作台、OpenCode 插件、Claude Code 兼容 hooks、MCP/工具适配、Agent 编排、上下文恢复与 CLI 诊断安装能力。
 
 ## 项目真实定位
 
 这个仓库不只是一个浏览器 AI 写作工具。当前代码实际包含两条主要产品线：
 
-1. **LucidWrite / editAI Web 写作台**  
+1. **LucidWrite Web 写作台**  
    一个本地或 Vercel 可运行的浏览器写作工作台，使用 Hono 提供 API，使用 Supabase 做账号与写作数据存储，使用 DeepSeek/OpenAI-compatible LLM 或 OpenCode SDK 执行写作任务。
 
 2. **OpenCode / Claude Code 增强插件与 CLI**  
@@ -22,14 +22,17 @@
 
 ## 命名说明
 
-仓库名是 `LucidWrite`，但源码中仍保留多个历史名称：
+项目对外统一称为 **LucidWrite**。文档、注释和界面文案都使用这个名字。
+
+但出于兼容性，源码中仍保留几个**功能性标识符**（它们是包名、命令名、插件名，改动会破坏已发布包和已有安装，因此保持不变）：
 
 - `package.json` 包名：`edit-ai`
-- CLI binary：`newtype-profile`
-- CLI program name：`oh-my-opencode`
-- 旧文档中出现：`Oh-My-OpenCode`、`Newtype-Profile`、`editAI`
+- CLI binary：`newtype-profile`（命令行调用仍是 `bunx newtype-profile`）
+- OpenCode 插件名 / 发布包名：`oh-my-opencode`（配置里写 `"plugin": ["oh-my-opencode"]`）
+- 环境变量前缀：`EDITAI_*`、`NEWTYPE_*`、`DEEPSEEK_*`
+- 配置文件名：`newtype-profile.json`；缓存目录：`~/.cache/oh-my-opencode/`
 
-这些名称指向同一个演化中的工程。本文档统一称为 **LucidWrite**，并在命令处保留源码里的真实名称。
+在命令、配置和环境变量处请以上述真实名称为准。
 
 ## 核心能力
 
@@ -355,20 +358,4 @@ script/
 - Web 服务会校验工作区路径，避免任意路径逃逸。
 - `.env`、本地工作区数据、账号 token、生成产物不应提交到 Git。
 - 插件会注册大量工具和 hooks，首次启用前建议运行 `doctor` 检查环境。
-
-## 当前 README 中需要纠正的点
-
-如果你看到旧 README，它可能会让人误解为“这个仓库只是一个浏览器 AI 写作台”。这不准确。
-
-更准确的说法是：
-
-- `src/web` 是 LucidWrite 的 Web 写作台。
-- `src/index.ts`、`src/hooks`、`src/tools`、`src/features`、`src/agents` 才是这个仓库的大型 OpenCode harness 主体。
-- `.env.example` 目前缺少 README 中提到的 Supabase 变量，需要手动补充。
-- 默认端口不是固定 `3899`；如果 `.env` 使用模板里的 `PORT=3900`，实际会跑在 `3900`。
-- CLI 的实际入口和命名存在历史遗留：bin 是 `newtype-profile`，program name 是 `oh-my-opencode`。
-
-## 推荐的项目一句话描述
-
-LucidWrite 是一个面向 AI 写作和 AI 编程工作流的多运行时 harness 工程：它同时提供浏览器写作工作台、OpenCode 插件、Claude Code 兼容 hooks、MCP/工具适配、Agent 编排、上下文恢复与 CLI 诊断安装能力。
 

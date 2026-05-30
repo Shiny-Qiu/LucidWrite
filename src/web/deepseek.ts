@@ -41,7 +41,7 @@ export async function runDeepSeekTask(input: BuildPromptInput): Promise<DeepSeek
     {
       role: "system",
       content:
-        `You are editAI, an AI writing workspace assistant. You help users write and refine articles in Chinese.
+        `You are LucidWrite, an AI writing workspace assistant. You help users write and refine articles in Chinese.
 
 MANDATORY OUTPUT FORMAT — follow this exactly every time:
 
@@ -68,7 +68,7 @@ export async function continueDeepSeekPipeline(outline: string): Promise<DeepSee
     {
       role: "system",
       content:
-        "You are editAI running the approved content pipeline. Produce the final Markdown deliverable with source notes and fact-check notes.",
+        "You are LucidWrite running the approved content pipeline. Produce the final Markdown deliverable with source notes and fact-check notes.",
     },
     { role: "user", content: buildPipelineApprovalPrompt(outline) },
   ])

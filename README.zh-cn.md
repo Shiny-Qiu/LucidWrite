@@ -1,34 +1,85 @@
-<p align="right">
-  <a href="./README.md">English</a> | <strong>简体中文</strong>
-</p>
-
 # LucidWrite
 
-**带云端同步、用户账号和结构化多阶段写作流程的浏览器 AI 写作工作台。**
+> 多运行时 AI 写作与 OpenCode 增强工程：浏览器写作台、OpenCode 插件、Claude Code 兼容 Hooks、MCP/工具适配、Agent 编排、CLI 诊断与安装工具。
 
-LucidWrite 是一个本地运行的 Web 写作工具，通过 AI Agent 引导你完成从选题到终稿的每个阶段。用户账号和所有写作数据（项目、草稿、风格指纹）存储在 Supabase 数据库，并通过行级安全策略（RLS）隔离——每个用户只能看到自己的内容。
+## 项目真实定位
 
-## 功能特点
+这个仓库不只是一个浏览器 AI 写作工具。当前代码实际包含两条主要产品线：
 
-- **结构化写作流程** — 七个顺序阶段：选题交互 → 大纲框架 → 初稿敲定 → 内容精修 → 事实核查 → 质量评分 → 终稿敲定。
-- **实时 AI 协作** — 右侧对话实时修改左侧草稿，AI 每次返回完整更新后的文章，不只是片段。
-- **用户账号** — 基于 Supabase Auth 的邮箱注册和登录，注册需邮件确认。
-- **行级安全存储** — 项目、草稿、终稿、风格指纹均存储于 Supabase，RLS 策略确保用户间数据物理隔离。
-- **风格指纹** — 导入历史文章，让 AI 学习并保持你的写作风格。
-- **本地工作区** — 通过左侧文件树或 `@` 指令引用本地 Markdown 文件或目录作为上下文。
-- **LLM 无关** — 通过环境变量支持 DeepSeek、OpenAI 或任意 OpenAI 兼容接口。
+1. **LucidWrite / editAI Web 写作台**  
+   一个本地或 Vercel 可运行的浏览器写作工作台，使用 Hono 提供 API，使用 Supabase 做账号与写作数据存储，使用 DeepSeek/OpenAI-compatible LLM 或 OpenCode SDK 执行写作任务。
 
-## 环境要求
+2. **OpenCode / Claude Code 增强插件与 CLI**  
+   一个面向 OpenCode 的插件工程，提供 hooks、tools、agents、skills、MCP loader、上下文压缩/恢复、后台任务、Google Antigravity 认证、doctor 诊断与安装命令。
 
-| 工具 | 版本 | 安装方式 |
-|------|------|----------|
-| [Bun](https://bun.sh/) | ≥ 1.0 | `curl -fsSL https://bun.sh/install \| bash` |
-| Supabase 项目 | — | [supabase.com](https://supabase.com) |
-| LLM API Key | — | DeepSeek / OpenAI / 兼容接口 |
+因此，理解本项目时不要只看 `src/web/`。真正的工程入口包括：
 
-## 快速开始
+- `src/index.ts`：OpenCode 插件主入口。
+- `src/cli/index.ts`：CLI 主入口。
+- `src/web/server.ts`：Web 写作台服务端入口。
+- `api/index.ts`：Vercel Edge API 入口。
+- `supabase/schema.sql`：Supabase 数据库与 RLS 权限模型。
 
-### 1. 克隆并安装依赖
+## 命名说明
+
+仓库名是 `LucidWrite`，但源码中仍保留多个历史名称：
+
+- `package.json` 包名：`edit-ai`
+- CLI binary：`newtype-profile`
+- CLI program name：`oh-my-opencode`
+- 旧文档中出现：`Oh-My-OpenCode`、`Newtype-Profile`、`editAI`
+
+这些名称指向同一个演化中的工程。本文档统一称为 **LucidWrite**，并在命令处保留源码里的真实名称。
+
+## 核心能力
+
+### Web 写作台
+
+- 邮箱注册/登录，认证由 Supabase Auth 提供。
+- 项目、草稿、终稿、风格指纹存储在 Supabase。
+- 所有用户数据通过 Supabase RLS 隔离。
+- 支持本地 Markdown 工作区引用。
+- 支持 DeepSeek、OpenAI 或任意 OpenAI-compatible `/v1/chat/completions` 接口。
+- 本地模式下可通过 `@opencode-ai/sdk` 创建 OpenCode session 执行写作任务。
+- Vercel 模式下以 serverless/edge 方式同步调用 LLM。
+
+### OpenCode 插件
+
+- 注册工具：background task、chief task、skill、skill_mcp、slashcommand、look_at、interactive_bash 等。
+- 注册 hooks：tool before/after、chat message、event、context transform、system transform。
+- 支持上下文窗口监控、预防性压缩、动态上下文裁剪、会话恢复、任务续跑、输出截断。
+- 支持内置 agents：chief、researcher、fact-checker、archivist、extractor、writer、editor、deputy。
+- 支持内置 skills、自定义 skills、Claude skills、OpenCode skills 合并。
+- 支持 MCP 配置和 skill MCP 运行时管理。
+
+### CLI
+
+源码中的 CLI 入口是 `src/cli/index.ts`，发布后暴露的 bin 名为 `newtype-profile`，但 help 文案中显示为 `oh-my-opencode`。
+
+主要命令：
+
+- `install`：交互式安装和 OpenCode 配置引导。
+- `doctor`：检查安装、配置、认证、依赖、MCP、工具与更新状态。
+- `run <message>`：运行 OpenCode 任务，并等待 TODO/后台任务完成。
+- `get-local-version`：查看本地版本与更新状态。
+- `auth list` / `auth remove`：管理 Google Antigravity 账号。
+- `version`：打印版本。
+
+## 技术栈
+
+- Runtime：Bun
+- Language：TypeScript / JavaScript
+- Web Server：Hono
+- AI Runtime：OpenCode SDK、OpenAI-compatible Chat Completions API
+- Database/Auth：Supabase + Supabase Auth + RLS
+- CLI：commander、@clack/prompts
+- Validation：Zod
+- MCP：@modelcontextprotocol/sdk
+- Code tools：ast-grep、LSP adapters、grep/glob wrappers
+
+## 快速开始：Web 写作台
+
+### 1. 安装依赖
 
 ```bash
 git clone https://github.com/Shiny-Qiu/LucidWrite.git
@@ -36,120 +87,288 @@ cd LucidWrite
 bun install
 ```
 
-### 2. 配置 Supabase
+### 2. 配置环境变量
 
-在 [supabase.com](https://supabase.com) 创建项目后，在 **SQL Editor** 中执行建表脚本：
-
-```bash
-# 将 supabase/schema.sql 的全部内容粘贴到 Supabase SQL Editor 中执行
-```
-
-脚本会创建五张数据表（`profiles` / `projects` / `drafts` / `finals` / `style_fingerprints`），为所有表开启 RLS，并安装注册时自动创建 profile 的触发器。
-
-### 3. 配置环境变量
+复制模板：
 
 ```bash
 cp .env.example .env
 ```
 
-编辑 `.env`：
+当前 `.env.example` 只包含 LLM 与端口相关变量；如果要完整使用账号、项目、草稿和风格指纹功能，还需要手动补充 Supabase 变量：
 
 ```env
-# Supabase（必填）
-SUPABASE_URL=https://<project_ref>.supabase.co
-SUPABASE_ANON_KEY=sb_publishable_xxxxxxxxxxxx
-SUPABASE_SERVICE_ROLE_KEY=sb_secret_xxxxxxxxxxxx
+# Supabase，Web 完整功能必需
+SUPABASE_URL=https://<your-project-ref>.supabase.co
+SUPABASE_ANON_KEY=<your-anon-key>
+SUPABASE_SERVICE_ROLE_KEY=<your-service-role-key>
 
-# LLM 模型 — DeepSeek 示例（也支持其他 OpenAI 兼容接口）
-EDITAI_LLM_API_KEY=sk-xxxxxxxxxxxx
+# OpenAI-compatible LLM，DeepSeek 示例
+EDITAI_LLM_API_KEY=<your-api-key>
 EDITAI_LLM_BASE_URL=https://api.deepseek.com
 EDITAI_LLM_MODEL=deepseek-chat
 EDITAI_LLM_MAX_RETRIES=3
 EDITAI_LLM_TIMEOUT_MS=60000
+
+# 兼容旧变量名
+DEEPSEEK_API_KEY=<your-api-key>
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_MODEL=deepseek-chat
+DEEPSEEK_TIMEOUT_MS=60000
+
+# Web 端口
+PORT=3900
+
+# 可选：指定 Web 工作区根目录
+EDITAI_WEB_ROOT=
+NEWTYPE_WEB_ROOT=
 ```
 
-### 4. 启动
+端口规则：
+
+- 如果设置了 `PORT`，优先使用 `PORT`。
+- 如果设置了 `EDITAI_WEB_PORT` 或 `NEWTYPE_WEB_PORT`，会作为次级端口来源。
+- 如果都未设置，默认端口是 `3899`。
+- 仓库当前 `.env.example` 写了 `PORT=3900`，所以按模板启动时通常是 `http://localhost:3900`。
+
+### 3. 初始化 Supabase
+
+在 Supabase 项目的 SQL Editor 中执行：
+
+```sql
+-- 复制并执行 supabase/schema.sql 的全部内容
+```
+
+该脚本会创建：
+
+- `profiles`
+- `projects`
+- `drafts`
+- `finals`
+- `style_fingerprints`
+
+并为这些表启用 Row Level Security，核心策略是 `auth.uid() = user_id`。
+
+### 4. 启动 Web 服务
 
 ```bash
 bun run web
 ```
 
-打开 **http://localhost:3899**，注册账号后即可开始写作。
+打开终端输出中的地址，例如：
 
-## 写作流程
-
-| 阶段 | 说明 |
-|------|------|
-| 选题交互 | 采访式对话，确定文章角度和核心议题 |
-| 大纲框架 | 生成并调整结构化大纲 |
-| 初稿敲定 | 基于确认后的大纲生成完整初稿 |
-| 内容精修 | AI 内容分析，按需直接修改正文 |
-| 事实核查 | 逐条核查，确认后修正正文 |
-| 质量评分 | 结构、论据、风格、清晰度全维度评分 |
-| 终稿敲定 | 最终微调，保存 `final.md` |
-
-在每个阶段，右侧对话框中的任何指令都可以修改左侧文章。AI 始终返回**完整的更新后文章**，而不是片段。
-
-## 认证流程
-
-```
-注册 → Supabase 发送确认邮件
-     → 用户点击链接 → 跳回 localhost:3899
-     → 前端自动解析 Token → 完成登录
-
-登录 → POST /api/auth/login → 服务端调用 Supabase Auth REST API
-     → 返回 JWT → 存储在 localStorage
-     → 后续所有请求携带 Authorization: Bearer <JWT>
-     → 服务端验证 JWT → RLS 执行每用户数据隔离
+```text
+http://localhost:3900
 ```
 
-## 项目结构
+## 快速开始：CLI / 插件开发
 
-```
-src/web/
-  server.ts        # Hono 服务端：auth 端点 + Supabase 数据库路由
-  supabase.ts      # 服务端 Supabase 客户端工厂
-  deepseek.ts      # LLM 客户端（DeepSeek / OpenAI 兼容）
-  task-runner.ts   # AI 任务执行引擎
-  task-prompts.ts  # 各模式 Prompt 模板
-  public/
-    index.html     # 应用主框架 + 登录注册 UI
-    app.js         # 前端状态、认证、API 调用
-    styles.css     # 界面样式
-supabase/
-  schema.sql       # 数据表 + RLS 策略 + 注册触发器
+本地直接运行 CLI：
+
+```bash
+bun src/cli/index.ts doctor
+bun src/cli/index.ts install
+bun src/cli/index.ts run "帮我检查这个项目的配置"
+bun src/cli/index.ts get-local-version
+bun src/cli/index.ts auth list
 ```
 
-## 环境变量说明
+构建发布产物：
 
-| 变量 | 是否必填 | 说明 |
-|------|----------|------|
-| `SUPABASE_URL` | ✓ | Supabase 项目 URL |
-| `SUPABASE_ANON_KEY` | ✓ | 公开 anon key（用于客户端配置接口） |
-| `SUPABASE_SERVICE_ROLE_KEY` | ✓ | 服务角色 key（仅服务端使用，可绕过 RLS） |
-| `EDITAI_LLM_API_KEY` | ✓ | LLM API Key |
-| `EDITAI_LLM_BASE_URL` | ✓ | LLM 接口地址（OpenAI 兼容） |
-| `EDITAI_LLM_MODEL` | ✓ | 模型名称 |
-| `EDITAI_LLM_MAX_RETRIES` | — | 失败重试次数（默认 3） |
-| `EDITAI_LLM_TIMEOUT_MS` | — | 请求超时毫秒数（默认 60000） |
+```bash
+bun run build
+```
+
+构建后主要输出：
+
+- `dist/index.js`：OpenCode 插件入口。
+- `dist/google-auth.js`：Google Auth 相关导出。
+- `dist/web/server.js`：Web server。
+- `dist/cli/index.js`：CLI 入口。
+- `dist/public/`：Web 静态资源。
+- `dist/oh-my-opencode.schema.json`：配置 schema。
 
 ## 开发命令
 
 ```bash
-bun run web        # 启动本地 Web 服务
-bun run build      # 构建 CLI、插件、Web 服务和静态资源
+bun run web        # 启动 Web 写作台
+bun run build      # 构建插件、CLI、Web server 和静态资源
 bun run typecheck  # TypeScript 类型检查
 bun test           # 运行测试
 bun run clean      # 删除 dist/
 ```
 
+## 主要目录结构
+
+```text
+src/
+  index.ts                         # OpenCode 插件总装配入口
+  plugin-config.ts                 # 用户/项目配置读取与合并
+  plugin-state.ts                  # 插件运行时状态
+
+  config/
+    schema.ts                      # Zod 配置 schema
+
+  hooks/                           # 生命周期 hooks
+    claude-code-hooks/             # Claude Code hook 兼容层
+    chief-orchestrator/            # Chief 编排与质量反馈
+    preemptive-compaction/         # 预防性上下文压缩
+    session-recovery/              # 会话恢复
+    memory-system/                 # 记忆提取与存储
+    ...                            # 其他 hook
+
+  tools/                           # 模型可调用工具适配器
+    chief-task/
+    background-task/
+    skill/
+    skill-mcp/
+    lsp/
+    grep/
+    glob/
+    interactive-bash/
+    knowledge-base/
+    ...
+
+  features/                        # 跨 hook/tool 的服务层
+    background-agent/
+    skill-mcp-manager/
+    opencode-skill-loader/
+    claude-code-mcp-loader/
+    context-injector/
+    builtin-skills/
+    builtin-commands/
+    ...
+
+  agents/                          # 内置 agent 契约
+    chief.ts
+    researcher.ts
+    writer.ts
+    editor.ts
+    fact-checker.ts
+    archivist.ts
+    extractor.ts
+    deputy.ts
+
+  mcp/                             # MCP 配置与适配
+  auth/antigravity/                # Google Antigravity/OAuth 认证适配
+  cli/                             # CLI 命令
+  shared/                          # 跨模块公共工具
+
+  web/
+    server.ts                      # Hono Web 服务
+    task-runner.ts                 # 本地 OpenCode task runner
+    deepseek.ts                    # OpenAI-compatible LLM 客户端
+    supabase.ts                    # Supabase client 工厂
+    settings.ts                    # Web 设置读写
+    public/                        # Web 前端静态文件
+
+api/
+  index.ts                         # Vercel Edge API 入口
+
+supabase/
+  schema.sql                       # 数据表、RLS、注册触发器
+
+script/
+  build-schema.ts
+  generate-changelog.ts
+  package-local.sh
+  publish.ts
+```
+
+## Web API 摘要
+
+本地 Hono 服务提供的主要 API：
+
+- `GET /api/health`
+- `GET /api/config`
+- `POST /api/auth/login`
+- `POST /api/auth/register`
+- `POST /api/auth/refresh`
+- `GET /api/auth/me`
+- `GET /api/settings`
+- `PUT /api/settings`
+- `GET /api/workspace`
+- `PUT /api/workspace`
+- `GET /api/style-fingerprint`
+- `PUT /api/style-fingerprint`
+- `GET /api/projects`
+- `POST /api/projects`
+- `GET /api/tasks`
+- `GET /api/tasks/:id`
+- `POST /api/tasks`
+- `POST /api/tasks/:id/approve`
+- `GET /api/files`
+- `POST /api/files`
+- `GET /api/file`
+- `GET /api/references`
+- `GET /api/reference`
+
+## 配置文件
+
+插件配置会从两个位置读取并合并：
+
+1. 用户级：`~/.config/opencode/newtype-profile.json` 或 `.jsonc`
+2. 项目级：`<project>/.opencode/newtype-profile.json` 或 `.jsonc`
+
+项目级配置会覆盖用户级配置。配置由 `src/config/schema.ts` 校验。
+
+常见配置字段：
+
+```jsonc
+{
+  "disabled_hooks": [
+    "session-notification"
+  ],
+  "disabled_agents": [],
+  "disabled_skills": [],
+  "disabled_mcps": [],
+  "agents": {
+    "writer": {
+      "category": "writing",
+      "temperature": 0.5
+    }
+  },
+  "categories": {
+    "writing": {
+      "model": "openai/gpt-4.1",
+      "temperature": 0.5
+    }
+  },
+  "claude_code": {
+    "mcp": true,
+    "commands": true,
+    "skills": true,
+    "agents": true,
+    "hooks": true,
+    "plugins": true
+  },
+  "google_auth": true,
+  "auto_update": true,
+  "mcp": {}
+}
+```
+
 ## 安全说明
 
-- `.env` 和 `.mcp.json` 已加入 `.gitignore`，不会提交到仓库。
-- `SUPABASE_SERVICE_ROLE_KEY` 可绕过 RLS，仅在服务端使用，绝不暴露给前端。
-- 所有数据表均强制 RLS：每次操作都验证 `auth.uid() = user_id`。
-- Supabase Auth 要求邮件确认后才能登录。
+- `SUPABASE_SERVICE_ROLE_KEY` 只能在服务端使用，不要暴露给前端。
+- Supabase 表已启用 RLS，用户只能访问自己的记录。
+- Web 服务会校验工作区路径，避免任意路径逃逸。
+- `.env`、本地工作区数据、账号 token、生成产物不应提交到 Git。
+- 插件会注册大量工具和 hooks，首次启用前建议运行 `doctor` 检查环境。
 
-## 仓库
+## 当前 README 中需要纠正的点
 
-GitHub：<https://github.com/Shiny-Qiu/LucidWrite>
+如果你看到旧 README，它可能会让人误解为“这个仓库只是一个浏览器 AI 写作台”。这不准确。
+
+更准确的说法是：
+
+- `src/web` 是 LucidWrite 的 Web 写作台。
+- `src/index.ts`、`src/hooks`、`src/tools`、`src/features`、`src/agents` 才是这个仓库的大型 OpenCode harness 主体。
+- `.env.example` 目前缺少 README 中提到的 Supabase 变量，需要手动补充。
+- 默认端口不是固定 `3899`；如果 `.env` 使用模板里的 `PORT=3900`，实际会跑在 `3900`。
+- CLI 的实际入口和命名存在历史遗留：bin 是 `newtype-profile`，program name 是 `oh-my-opencode`。
+
+## 推荐的项目一句话描述
+
+LucidWrite 是一个面向 AI 写作和 AI 编程工作流的多运行时 harness 工程：它同时提供浏览器写作工作台、OpenCode 插件、Claude Code 兼容 hooks、MCP/工具适配、Agent 编排、上下文恢复与 CLI 诊断安装能力。
+

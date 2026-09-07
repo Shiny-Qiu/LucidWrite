@@ -43,6 +43,31 @@ test("edited rich text preserves heading, emphasis, link and table semantics", a
   expect(saved).toContain("[来源](https://example.com)")
   expect(saved).toContain("| 项目 | 值 |")
 })
+test("numbered lists retain their structure and starting number after editing and reopening", async () => {
+  const { w, app, editor } = await setup()
+  app.setDraftMarkdown("# 清单\n\n3. 第三步\n4. 第四步\n\n- 提醒")
+  expect(editor.querySelector("ol")?.start).toBe(3)
+  expect(editor.querySelectorAll("ol > li")).toHaveLength(2)
+  editor.querySelector("ol > li:last-child").textContent += "，已修改"
+  editor.dispatchEvent(new w.Event("input"))
+  const saved = app.editorMarkdown()
+  expect(saved).toContain("3. 第三步\n4. 第四步，已修改")
+  app.setDraftMarkdown(saved)
+  expect(editor.querySelector("ol")?.start).toBe(3)
+  expect(editor.querySelector("ul > li")?.textContent).toBe("提醒")
+})
+test("pasting an article over a heading does not turn pasted paragraphs into headings", async () => {
+  const { w, app, editor } = await setup()
+  app.setDraftMarkdown("# 新项目")
+  // Chromium keeps the original heading around the remaining pasted blocks.
+  editor.innerHTML = '<h1>文章标题</h1><h1><p>第一段正文。</p><p><strong>重点</strong>仍是正文。</p></h1>'
+  editor.dispatchEvent(new w.Event("input"))
+  const saved = app.editorMarkdown()
+  app.setDraftMarkdown(saved)
+  expect(editor.querySelectorAll("h1")).toHaveLength(1)
+  expect(editor.querySelector("p")?.textContent).toBe("第一段正文。")
+  expect(editor.querySelector("p strong")?.textContent).toBe("重点")
+})
 test("deleting the whole draft really saves an empty draft", async () => {
   const { w, app, editor } = await setup()
   app.setDraftMarkdown("# 原文\n\n应当删除")

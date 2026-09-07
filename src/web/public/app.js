@@ -189,9 +189,11 @@ function renderMarkdown(value = "") {
     const lines = block.split(/\r?\n/)
     const html = []
     let list = []
+    let listTag = "ul"
+    let listStart = 1
     let quote = []
     const flushList = () => {
-      if (list.length) html.push(`<ul>${list.map((item) => `<li>${renderInlineMarkdown(item)}</li>`).join("")}</ul>`)
+      if (list.length) html.push(`<${listTag}${listTag === "ol" ? ` start="${listStart}"` : ""}>${list.map((item) => `<li>${renderInlineMarkdown(item)}</li>`).join("")}</${listTag}>`)
       list = []
     }
     const flushQuote = () => {
@@ -226,10 +228,14 @@ function renderMarkdown(value = "") {
         quote.push(quoteLine[1])
         continue
       }
-      const bullet = trimmed.match(/^[-*]\s+(.+)$/)
-      if (bullet) {
+      const bullet = trimmed.match(/^[-*+]\s+(.+)$/)
+      const numbered = trimmed.match(/^(\d{1,9})[.)]\s+(.+)$/)
+      if (bullet || numbered) {
         flushQuote()
-        list.push(bullet[1])
+        const tag = numbered ? "ol" : "ul"
+        if (list.length && tag !== listTag) flushList()
+        if (!list.length) { listTag = tag; listStart = numbered ? Number(numbered[1]) : 1 }
+        list.push(numbered ? numbered[2] : bullet[1])
         continue
       }
       flushList()
@@ -331,10 +337,14 @@ function markdownFromEditor(root) {
       return "\n\n" + [line(rows[0]), line(rows[0].map(() => "---")), ...rows.slice(1).map(line)].join("\n") + "\n\n"
     }
     if (tag === "ul" || tag === "ol") {
-      return "\n\n" + [...node.children].map((li, index) => (tag === "ol" ? (index + 1) + ". " : "- ") + children(li).trim().replace(/\n/g, "\n  ")).join("\n") + "\n\n"
+      return "\n\n" + [...node.children].map((li, index) => (tag === "ol" ? (index + node.start) + ". " : "- ") + children(li).trim().replace(/\n/g, "\n  ")).join("\n") + "\n\n"
     }
     const content = children(node)
-    if (/^h[1-6]$/.test(tag)) return "\n\n" + "#".repeat(Number(tag[1])) + " " + content.trim() + "\n\n"
+    if (/^h[1-6]$/.test(tag)) {
+      // Pasting over a heading can leave Chromium's old heading around block nodes.
+      const containsBlocks = [...node.children].some(child => /^(P|DIV|H[1-6]|UL|OL|TABLE|BLOCKQUOTE|PRE)$/.test(child.tagName))
+      return "\n\n" + (containsBlocks ? "" : "#".repeat(Number(tag[1])) + " ") + content.trim() + "\n\n"
+    }
     if (tag === "strong" || tag === "b") return "**" + content + "**"
     if (tag === "em" || tag === "i") return "*" + content + "*"
     if (tag === "del" || tag === "s") return "~~" + content + "~~"

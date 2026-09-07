@@ -2,11 +2,17 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      if (new URLSearchParams(location.hash.slice(1)).has("access_token") ||
+          new URLSearchParams(location.hash.slice(1)).has("error_description")) {
+        location.replace("/app" + location.hash)
+      }
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>LucidWrite — 为长内容写作而生的本地工作台</title>
+    <title>LucidWrite — 为长内容写作而生的工作台</title>
     <meta
       name="description"
-      content="LucidWrite 是一个本地运行的 AI 写作工作台，把从选题到终稿的七步流程拆解成可控的工作流。你的目录、你的文件、你的风格。"
+      content="LucidWrite 是一个云端 AI 写作工作台，把从选题到终稿的七步流程拆解成可控的工作流。保存文章和进度，延续你的写作风格。"
     />
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
     <link rel="stylesheet" href="/styles.css" />
@@ -70,13 +76,13 @@
           拆解成<em>可工作的流程</em>。
         </h1>
         <p class="lp-hero-sub">
-          LucidWrite 是一个本地运行的 AI 写作工作台。从选题到终稿，七步流程串起来，多个 agent 协作走完每一步。
+          LucidWrite 是一个云端 AI 写作工作台。从选题到终稿，七步流程串起来，按阶段完成采访、写作、核查和评分。
         </p>
         <div class="lp-hero-cta">
           <a class="send-button" href="/app">开始写作</a>
           <a class="secondary-button" href="#process">查看流程</a>
         </div>
-        <p class="lp-hero-meta">本地工作区 · Markdown 输出 · LLM 可换</p>
+        <p class="lp-hero-meta">云端项目 · Markdown 输出 · LLM 可换</p>
       </section>
 
       <!-- Workspace preview — 静态展示三栏 shell -->
@@ -155,7 +161,7 @@
       <section id="process" class="lp-section reveal">
         <header class="lp-section-header">
           <p class="eyebrow">PROCESS</p>
-          <h2 class="lp-section-title">七步流程，每一步都有专门的 agent。</h2>
+          <h2 class="lp-section-title">七步流程，每一步都有明确的任务。</h2>
           <p class="lp-section-sub">
             选题不收敛就不进入大纲。大纲不通过就不开始初稿。卡在哪一步，就停在哪一步，直到这一步真的可以交付。
           </p>
@@ -165,7 +171,7 @@
           <li class="lp-step">
             <header class="lp-step-header"><span class="lp-step-index">01</span><span class="lp-step-label">选题交互</span></header>
             <h3>把模糊的想法磨成可写的角度</h3>
-            <p>不限轮次的选题对话，最多 3 轮收敛。AI 会反问，把"想写点什么"逼成"具体写什么"。</p>
+            <p>通过选题对话，最多 3 轮收敛。AI 会反问，把"想写点什么"逼成"具体写什么"。</p>
           </li>
           <li class="lp-step">
             <header class="lp-step-header"><span class="lp-step-index">02</span><span class="lp-step-label">大纲框架</span></header>
@@ -195,7 +201,7 @@
           <li class="lp-step">
             <header class="lp-step-header"><span class="lp-step-index">07</span><span class="lp-step-label">终稿敲定</span></header>
             <h3>final.md 输出，draft.md 留作工作稿</h3>
-            <p>最后微调后保存 final.md。原始草稿继续保留，所有改动都在你的目录下，可以直接 git diff。</p>
+            <p>最后微调后保存 final.md。工作稿 draft.md 继续保留，文章和流程进度保存在你的个人项目中。</p>
           </li>
           <li class="lp-step">
             <header class="lp-step-header"><span class="lp-step-index">∞</span><span class="lp-step-label">loop</span></header>
@@ -234,9 +240,9 @@
               <span class="lp-why-card-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 10v6m11-11h-6m-10 0H1m17.5-6.5l-4.2 4.2m-4.6 4.6l-4.2 4.2m0-13l4.2 4.2m4.6 4.6l4.2 4.2"/></svg>
               </span>
-              <h3>多 agent 调度</h3>
+              <h3>分阶段写作</h3>
             </div>
-            <p>选题、采访、写作、核查、评分各司其职。每一阶段调度对应能力，不是一个万能 prompt 走到底。</p>
+            <p>选题、采访、写作、核查、评分各有任务。每一阶段结合当前文章、历史对话和风格参考调用所选模型。</p>
           </article>
 
           <article class="lp-why-card">
@@ -244,9 +250,9 @@
               <span class="lp-why-card-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
               </span>
-              <h3>本地工作区</h3>
+              <h3>云端工作区</h3>
             </div>
-            <p>草稿、终稿、附件都在你指定的目录下。Markdown 文件可见可控，可以直接 git commit 或外部编辑。</p>
+            <p>草稿、终稿和写作进度保存在个人项目中。重新登录后可以继续写作，也可以引用已有项目的文章。</p>
           </article>
 
           <article class="lp-why-card">
@@ -254,9 +260,9 @@
               <span class="lp-why-card-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4z"/></svg>
               </span>
-              <h3>风格指纹</h3>
+              <h3>风格参考</h3>
             </div>
-            <p>导入 1-5 篇历史文章，LucidWrite 学一次，长期沿用你的语气、节奏、用词。不需要每次重新喂例子。</p>
+            <p>导入代表性历史文章，作为后续写作的语气、节奏和用词参考。你可以在设置中更新样本。</p>
           </article>
 
           <article class="lp-why-card">
@@ -266,7 +272,7 @@
               </span>
               <h3>LLM 可换</h3>
             </div>
-            <p>DeepSeek、OpenAI、Anthropic、Google，任何 OpenAI 兼容的端点都行。模型决策权留给你，不绑定。</p>
+            <p>支持 DeepSeek、OpenAI、Anthropic 和 Google。在设置中选择模型，使用对应服务商的 API Key。</p>
           </article>
         </div>
       </section>
@@ -277,24 +283,24 @@
       <section id="spec" class="lp-section reveal">
         <header class="lp-section-header">
           <p class="eyebrow">UNDER THE HOOD</p>
-          <h2 class="lp-section-title">本地启动，云端同步，Markdown 输出。</h2>
+          <h2 class="lp-section-title">打开浏览器，接着写，随时保存。</h2>
         </header>
 
         <div class="lp-spec">
           <div class="lp-spec-cell">
             <span class="lp-spec-label">Runtime</span>
-            <span class="lp-spec-value">Bun · Hono</span>
-            <span class="lp-spec-note">浏览器访问本地端口，服务端只跑在你机器上。</span>
+            <span class="lp-spec-value">浏览器 · 云端服务</span>
+            <span class="lp-spec-note">无需本地启动服务，登录后即可进入写作工作台。</span>
           </div>
           <div class="lp-spec-cell">
             <span class="lp-spec-label">Storage</span>
             <span class="lp-spec-value">Supabase · Row-Level Security</span>
-            <span class="lp-spec-note">账号、项目、草稿、风格指纹云端同步，每个用户只看得到自己的数据。</span>
+            <span class="lp-spec-note">账号、项目、草稿、风格参考云端同步，每个用户只看得到自己的数据。</span>
           </div>
           <div class="lp-spec-cell">
             <span class="lp-spec-label">Models</span>
             <span class="lp-spec-value">DeepSeek · OpenAI · Compatible</span>
-            <span class="lp-spec-note">在设置里填 API key，或走 .env。模型怎么选，你说了算。</span>
+            <span class="lp-spec-note">在设置里填写 API Key 和模型名称，也可使用站点提供的默认模型。</span>
           </div>
         </div>
       </section>
@@ -315,7 +321,7 @@
               <span class="lp-faq-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
             </summary>
             <div class="lp-faq-answer">
-              Markdown 文件(draft.md / final.md / references)在你本地的工作目录下，可以直接 git 管理。项目元信息、风格指纹、账号通过 Supabase 同步到云端，每个用户走 Row-Level Security，只看得到自己的数据。
+              线上版的草稿、终稿、项目进度和风格样本保存在个人云端账号中。浏览器也会保留编辑恢复副本；共享设备上请妥善管理浏览器数据。
             </div>
           </details>
 
@@ -325,17 +331,17 @@
               <span class="lp-faq-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
             </summary>
             <div class="lp-faq-answer">
-              本地服务跑在你机器上，但调用 LLM 需要联网。如果接入本地模型(Ollama 之类的 OpenAI 兼容端点)，就可以真正离线。
+              线上版的登录、云端保存和模型调用需要联网。断网时当前页面保留编辑内容和本机恢复副本，恢复连接后再保存。
             </div>
           </details>
 
           <details class="reveal">
             <summary>
-              可以换 Claude / GPT-4 / 别的模型吗?
+              可以换 Claude / GPT / 别的模型吗?
               <span class="lp-faq-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
             </summary>
             <div class="lp-faq-answer">
-              可以。设置里填 API key，或走 .env。任何 OpenAI 兼容的端点都行 —— DeepSeek、OpenAI、Anthropic、Google、Together、本地推理服务等。
+              可以。在设置中填写对应服务商的 API Key，并选择 DeepSeek、OpenAI、Anthropic 或 Google 的模型；模型是否可用取决于你的服务商账号权限。
             </div>
           </details>
 
@@ -351,11 +357,11 @@
 
           <details class="reveal">
             <summary>
-              风格指纹会泄露我的原文吗?
+              导入的风格样本如何使用?
               <span class="lp-faq-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
             </summary>
             <div class="lp-faq-answer">
-              风格指纹是抽象后的摘要(语气、节奏、用词偏好等)，不存原文。导入历史文章时原文也只在生成指纹的那次请求里送给模型，生成完不留底。
+              当前版本保存你导入的样本，并在后续写作时将其作为上下文发送给所选模型。请仅导入你愿意用于写作参考的内容；可在设置中替换样本或跳过以清除当前风格参考。
             </div>
           </details>
 
@@ -484,12 +490,13 @@
         async function loginUser(e) {
           e?.preventDefault()
           const email = m("#lpLoginEmail").value.trim()
-          const password = m("#lpLoginPassword").value.trim()
+          const password = m("#lpLoginPassword").value
           const errEl = m("#lpLoginError")
           errEl.textContent = ""
           errEl.style.color = ""
           if (!email || !password) { errEl.textContent = "请填写邮箱和密码"; return }
           const btn = m("#lpLoginButton")
+          if (btn.disabled) return
           btn.disabled = true
           btn.textContent = "登录中…"
           try {
@@ -514,13 +521,14 @@
         async function registerUser(e) {
           e?.preventDefault()
           const email = m("#lpRegisterEmail").value.trim()
-          const password = m("#lpRegisterPassword").value.trim()
+          const password = m("#lpRegisterPassword").value
           const errEl = m("#lpRegisterError")
           errEl.textContent = ""
           errEl.style.color = ""
           if (!email || !password) { errEl.textContent = "请填写邮箱和密码"; return }
           if (password.length < 6) { errEl.textContent = "密码至少需要 6 位"; return }
           const btn = m("#lpRegisterButton")
+          if (btn.disabled) return
           btn.disabled = true
           btn.textContent = "注册中…"
           try {
@@ -548,9 +556,9 @@
         }
 
         m("#lpLoginButton").addEventListener("click", loginUser)
-        m("#lpLoginPassword").addEventListener("keydown", (e) => { if (e.key === "Enter") loginUser(e) })
+        m("#lpLoginPassword").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.isComposing) loginUser(e) })
         m("#lpRegisterButton").addEventListener("click", registerUser)
-        m("#lpRegisterPassword").addEventListener("keydown", (e) => { if (e.key === "Enter") registerUser(e) })
+        m("#lpRegisterPassword").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.isComposing) registerUser(e) })
       })()
 
       // Tri-canvas pencil + paper + 全局光斑:

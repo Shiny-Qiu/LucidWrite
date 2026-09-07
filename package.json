@@ -29,7 +29,10 @@
     "prepublishOnly": "bun run clean && bun run build",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
-    "web": "bun run src/web/server.ts"
+    "web": "bun run src/web/server.ts",
+    "test:web": "bun test tests/web",
+    "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
+    "build:web": "npm run typecheck:web && node script/build-web.mjs"
   },
   "keywords": [
     "opencode",
@@ -73,9 +76,12 @@
     "zod": "^4.1.8"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@types/js-yaml": "^4.0.9",
+    "@types/jsdom": "^30.0.0",
     "@types/picomatch": "^3.0.2",
     "bun-types": "latest",
+    "jsdom": "26.1.0",
     "typescript": "^5.7.3"
   },
   "trustedDependencies": [

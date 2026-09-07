@@ -152,8 +152,9 @@
           </button>
         </div>
 
+        <p class="settings-note">Key 留空时保留原值。模型支持 deepseek-chat、OpenAI、Claude、Gemini；也可填 服务商/模型名。Tavily 或 Firecrawl 用于事实核查时联网检索。</p>
         <div class="settings-grid">
-          <label>DeepSeek<input id="deepseekKey" type="password" placeholder="Use .env for local keys" /></label>
+          <label>DeepSeek<input id="deepseekKey" type="password" placeholder="留空保留已保存的 Key" /></label>
           <label>OpenAI<input id="openaiKey" type="password" placeholder="sk-..." /></label>
           <label>Anthropic<input id="anthropicKey" type="password" placeholder="sk-ant-..." /></label>
           <label>Google<input id="googleKey" type="password" placeholder="AIza..." /></label>
@@ -164,7 +165,8 @@
 
         <div class="settings-actions">
           <span id="settingsState"></span>
-          <button id="saveSettings" class="send-button" value="default">Save</button>
+          <button id="editStyleButton" type="button" class="secondary-button">写作风格</button>
+          <button id="saveSettings" type="button" class="send-button" value="default">Save</button>
         </div>
       </form>
     </dialog>
@@ -201,13 +203,13 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
-        <p class="settings-note">导入一次后，LucidWrite 会长期使用你的风格指纹。你可以粘贴历史文章，或先跳过。</p>
+        <p class="settings-note">样本会保存到个人账号，并作为后续写作的模型上下文。请仅导入你愿意用于写作参考的内容，也可以先跳过。</p>
         <textarea id="styleSourceInput" class="style-source" placeholder="粘贴 1-5 篇历史文章，或粘贴你最有代表性的文章内容"></textarea>
         <div class="settings-actions">
           <span id="styleState"></span>
           <div class="settings-button-row">
-            <button id="skipStyleButton" class="secondary-button" value="default">跳过</button>
-            <button id="saveStyleButton" class="send-button" value="default">生成风格指纹</button>
+            <button id="skipStyleButton" type="button" class="secondary-button" value="default">跳过</button>
+            <button id="saveStyleButton" type="button" class="send-button" value="default">保存风格样本</button>
           </div>
         </div>
       </form>

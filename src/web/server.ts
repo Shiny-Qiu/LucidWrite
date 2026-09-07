@@ -28,7 +28,7 @@ const initialRootDirectory = resolve(
 )
 let workspaceDirectory = initialRootDirectory
 // import.meta.dir is Bun-specific; use fileURLToPath for Node.js/Vercel (ESM compatible)
-const _currentDir = (import.meta as Record<string, unknown>).dir as string | undefined
+const _currentDir = import.meta.dir as string | undefined
   ?? dirname(fileURLToPath(import.meta.url))
 const publicDirectory = resolve(_currentDir, "public")
 const port = Number(process.env.PORT ?? process.env.EDITAI_WEB_PORT ?? process.env.NEWTYPE_WEB_PORT ?? 3899)

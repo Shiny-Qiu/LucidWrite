@@ -26,6 +26,8 @@ async function requestJSON(url: string, headers: Record<string, string>, body: u
     if (!response.ok) {
       // Do not forward provider messages that could contain credentials or prompt data.
       const hint = response.status === 401 || response.status === 403 ? "API Key 无效或无权调用所选模型"
+        : response.status === 400 || response.status === 422 ? "模型请求无效，请检查模型名称和配置，或缩短输入后重试"
+        : response.status === 413 ? "输入内容过长，请缩短文章或引用内容后重试"
         : response.status === 402 ? "模型账户余额不足"
         : response.status === 429 ? "模型服务限流，请稍后重试"
         : response.status === 404 ? "模型或接口不存在，请检查模型名称和配置"

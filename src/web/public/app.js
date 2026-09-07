@@ -942,7 +942,7 @@ async function saveStyleFingerprint(event) {
     return
   }
   $("#styleState").textContent = "正在保存风格样本..."
-  const content = `# 用户风格参考\n\n## 样本说明\n\n以下内容来自用户导入的历史文章，将作为后续写作风格参考。\n\n## 风格样本\n\n${source}`
+  const content = source
   const response = await apiFetch("/api/style-fingerprint", {
     method: "PUT",
     headers: { "content-type": "application/json" },

@@ -26,6 +26,23 @@ async function setup(fetcher?: (url: string, init: any) => Promise<Response>) {
 afterEach(() => { windows.splice(0).forEach(w => w.close()) })
 const tick = () => new Promise(resolve => setTimeout(resolve, 0))
 
+test("reopening and saving a style sample does not add generated text to the sample", async () => {
+  const writes: string[] = []
+  const { w, app } = await setup(async (url, init) => {
+    if (url === "/api/style-fingerprint" && init?.method === "PUT") writes.push(JSON.parse(init.body).content)
+    return Response.json({ configured: true, files: [], projects: [] })
+  })
+  const sample = "句子简短，用具体例子说明问题。\n\n保留作者自己的表达。"
+  app.state.styleFingerprint = sample
+  for (let i = 0; i < 2; i++) {
+    w.document.querySelector("#editStyleButton").click()
+    expect(w.document.querySelector("#styleSourceInput").value).toBe(sample)
+    w.document.querySelector("#saveStyleButton").click()
+    await tick()
+  }
+  expect(writes).toEqual([sample, sample])
+})
+
 test("opening and saving a Markdown article preserves its original syntax", async () => {
   const { app } = await setup()
   const markdown = "# 标题\n\n**重点** [来源](https://example.com)\n\n1. 第一项\n2. 第二项\n\n> 引文"

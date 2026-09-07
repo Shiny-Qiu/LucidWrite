@@ -42,3 +42,8 @@ AGENTS.md
 
 # MCP config contains Personal Access Tokens
 .mcp.json
+
+# Generated Vercel static output
+public/*
+!public/.gitkeep
+.vercel/

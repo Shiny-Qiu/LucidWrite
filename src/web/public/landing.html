@@ -2,6 +2,12 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      if (new URLSearchParams(location.hash.slice(1)).has("access_token") ||
+          new URLSearchParams(location.hash.slice(1)).has("error_description")) {
+        location.replace("/app" + location.hash)
+      }
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LucidWrite — 为长内容写作而生的本地工作台</title>
     <meta
@@ -484,12 +490,13 @@
         async function loginUser(e) {
           e?.preventDefault()
           const email = m("#lpLoginEmail").value.trim()
-          const password = m("#lpLoginPassword").value.trim()
+          const password = m("#lpLoginPassword").value
           const errEl = m("#lpLoginError")
           errEl.textContent = ""
           errEl.style.color = ""
           if (!email || !password) { errEl.textContent = "请填写邮箱和密码"; return }
           const btn = m("#lpLoginButton")
+          if (btn.disabled) return
           btn.disabled = true
           btn.textContent = "登录中…"
           try {
@@ -514,13 +521,14 @@
         async function registerUser(e) {
           e?.preventDefault()
           const email = m("#lpRegisterEmail").value.trim()
-          const password = m("#lpRegisterPassword").value.trim()
+          const password = m("#lpRegisterPassword").value
           const errEl = m("#lpRegisterError")
           errEl.textContent = ""
           errEl.style.color = ""
           if (!email || !password) { errEl.textContent = "请填写邮箱和密码"; return }
           if (password.length < 6) { errEl.textContent = "密码至少需要 6 位"; return }
           const btn = m("#lpRegisterButton")
+          if (btn.disabled) return
           btn.disabled = true
           btn.textContent = "注册中…"
           try {
@@ -548,9 +556,9 @@
         }
 
         m("#lpLoginButton").addEventListener("click", loginUser)
-        m("#lpLoginPassword").addEventListener("keydown", (e) => { if (e.key === "Enter") loginUser(e) })
+        m("#lpLoginPassword").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.isComposing) loginUser(e) })
         m("#lpRegisterButton").addEventListener("click", registerUser)
-        m("#lpRegisterPassword").addEventListener("keydown", (e) => { if (e.key === "Enter") registerUser(e) })
+        m("#lpRegisterPassword").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.isComposing) registerUser(e) })
       })()
 
       // Tri-canvas pencil + paper + 全局光斑:

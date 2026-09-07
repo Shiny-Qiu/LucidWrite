@@ -12,9 +12,13 @@ create table if not exists public.user_settings (
   constraint user_settings_providers_object check (jsonb_typeof(providers) = 'object')
 );
 alter table public.user_settings enable row level security;
-drop policy if exists "own settings" on public.user_settings;
-create policy "own settings" on public.user_settings for all to authenticated
-  using (user_id = auth.uid()) with check (user_id = auth.uid());
+do $policy$
+begin
+  create policy "own settings" on public.user_settings for all to authenticated
+    using (user_id = auth.uid()) with check (user_id = auth.uid());
+exception when duplicate_object then null;
+end;
+$policy$;
 revoke all on public.user_settings from anon;
 grant select, insert, update, delete on public.user_settings to authenticated;
 
@@ -34,27 +38,39 @@ create table if not exists public.writing_tasks (
 create index if not exists writing_tasks_user_project_created
   on public.writing_tasks (user_id, project_id, created_at desc);
 alter table public.writing_tasks enable row level security;
-drop policy if exists "own project tasks" on public.writing_tasks;
-create policy "own project tasks" on public.writing_tasks for all to authenticated
-  using (user_id = auth.uid() and exists (
-    select 1 from public.projects p where p.id = project_id and p.user_id = auth.uid()
-  ))
-  with check (user_id = auth.uid() and exists (
-    select 1 from public.projects p where p.id = project_id and p.user_id = auth.uid()
-  ));
+do $policy$
+begin
+  create policy "own project tasks" on public.writing_tasks for all to authenticated
+    using (user_id = auth.uid() and exists (
+      select 1 from public.projects p where p.id = project_id and p.user_id = auth.uid()
+    ))
+    with check (user_id = auth.uid() and exists (
+      select 1 from public.projects p where p.id = project_id and p.user_id = auth.uid()
+    ));
+exception when duplicate_object then null;
+end;
+$policy$;
 revoke all on public.writing_tasks from anon;
 grant select, insert, update, delete on public.writing_tasks to authenticated;
 
 -- A user-owned draft/final must also reference a project owned by that user.
 -- Restrictive policies combine with the original schema's ownership policies.
-drop policy if exists "draft belongs to own project" on public.drafts;
-create policy "draft belongs to own project" on public.drafts as restrictive for all to authenticated
-  using (exists (select 1 from public.projects p where p.id = project_id and p.user_id = auth.uid()))
-  with check (exists (select 1 from public.projects p where p.id = project_id and p.user_id = auth.uid()));
-drop policy if exists "final belongs to own project" on public.finals;
-create policy "final belongs to own project" on public.finals as restrictive for all to authenticated
-  using (exists (select 1 from public.projects p where p.id = project_id and p.user_id = auth.uid()))
-  with check (exists (select 1 from public.projects p where p.id = project_id and p.user_id = auth.uid()));
+do $policy$
+begin
+  create policy "draft belongs to own project" on public.drafts as restrictive for all to authenticated
+    using (exists (select 1 from public.projects p where p.id = project_id and p.user_id = auth.uid()))
+    with check (exists (select 1 from public.projects p where p.id = project_id and p.user_id = auth.uid()));
+exception when duplicate_object then null;
+end;
+$policy$;
+do $policy$
+begin
+  create policy "final belongs to own project" on public.finals as restrictive for all to authenticated
+    using (exists (select 1 from public.projects p where p.id = project_id and p.user_id = auth.uid()))
+    with check (exists (select 1 from public.projects p where p.id = project_id and p.user_id = auth.uid()));
+exception when duplicate_object then null;
+end;
+$policy$;
 
 notify pgrst, 'reload schema';
 commit;

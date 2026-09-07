@@ -15,6 +15,7 @@ const state = {
   notesRoot: "",
   activeProject: null,
   draftPath: "",
+  previewFile: null,
   expandedDirs: new Set(["."]),
   attachments: [],
   chat: [],
@@ -381,9 +382,9 @@ function invalidateReports() {
 }
 function setBusy(busy) {
   state.busy = busy
-  $("#sendButton").disabled = busy || state.advancing
-  $("#stageActionButton").disabled = busy || state.advancing
-  $("#chooseWorkspace").disabled = busy || state.advancing
+  $("#sendButton").disabled = busy || state.advancing || state.projectLoading || Boolean(state.previewFile)
+  $("#stageActionButton").disabled = busy || state.advancing || state.projectLoading || Boolean(state.previewFile)
+  $("#chooseWorkspace").disabled = busy || state.advancing || state.projectLoading
   renderProcessSteps()
 }
 function projectStorageKey(project = state.activeProject) {
@@ -444,7 +445,7 @@ function nextStepId() {
 }
 
 async function setStep(stepId) {
-  if (state.busy || state.advancing || !steps.some(step => step.id === stepId)) return
+  if (state.busy || state.advancing || state.projectLoading || state.previewFile || !steps.some(step => step.id === stepId)) return
   const reached = Math.max(steps.findIndex(step => step.id === state.currentStep), ...[...state.completedSteps].map(id => steps.findIndex(step => step.id === id) + 1))
   if (steps.findIndex(step => step.id === stepId) > reached || !await saveDraft()) return
   state.currentStep = stepId
@@ -467,7 +468,7 @@ function renderProcessSteps() {
     button.classList.toggle("active", id === state.currentStep)
     button.classList.toggle("done", state.completedSteps.has(id))
     const reached = Math.max(steps.findIndex(step => step.id === state.currentStep), ...[...state.completedSteps].map(done => steps.findIndex(step => step.id === done) + 1))
-    button.disabled = state.busy || state.advancing || steps.findIndex(step => step.id === id) > reached
+    button.disabled = state.busy || state.advancing || state.projectLoading || Boolean(state.previewFile) || steps.findIndex(step => step.id === id) > reached
     button.setAttribute("aria-disabled", String(button.disabled))
     button.textContent = steps.find((step) => step.id === id)?.label || id
   })
@@ -475,12 +476,25 @@ function renderProcessSteps() {
 
 function renderStage() {
   const step = currentStep()
+  const preview = state.previewFile
+  draftEditor.hidden = Boolean(preview)
+  $("#filePreview").hidden = !preview
+  $("#filePreview").innerHTML = preview ? renderMarkdown(preview.content) || "<p>终稿内容为空。</p>" : ""
+  $("#documentKind").textContent = preview ? "终稿预览 · final.md" : "工作稿 · draft.md"
+  $("#saveDraftButton").textContent = preview ? "返回工作稿" : "保存工作稿"
+  setBusy(state.busy)
   $("#modeHint").textContent = `当前阶段：${step.label}`
   $("#guidanceTitle").textContent = step.label
   $("#guidanceMeta").textContent = state.activeProject ? "右侧对话会结合当前文章和历史上下文。" : "请先创建或选择项目。"
   const action = $("#stageActionButton")
-  $("#saveFinalButton").hidden = state.currentStep !== "final"
-  action.hidden = !state.activeProject
+  $("#saveFinalButton").hidden = Boolean(preview) || state.currentStep !== "final"
+  action.hidden = !state.activeProject || Boolean(preview)
+  if (preview) {
+    $("#modeHint").textContent = "正在查看：" + preview.path
+    $("#guidanceMeta").textContent = "正在查看已保存的终稿；返回工作稿后可继续与 AI 编辑。"
+    $("#writingPhaseNotice").textContent = "这是已保存的终稿。点击“返回工作稿”继续编辑；需要引用文件时，在右侧输入 @ 选择。"
+    return
+  }
   const actionText = {
     topic: "确认选题，生成大纲",
     outline: "确认大纲，生成初稿",
@@ -677,7 +691,7 @@ function reportFromOutput(output) {
 }
 
 async function runStepTask(userText, reason = "chat", promptOverride = "") {
-  if (!state.activeProject || state.busy || !userText.trim()) return false
+  if (!state.activeProject || state.busy || state.projectLoading || state.previewFile || !userText.trim()) return false
   setBusy(true)
   const epoch = state.projectEpoch
   const project = state.activeProject
@@ -887,6 +901,7 @@ async function saveDraft() {
 }
 
 async function saveFinal() {
+  if (state.previewFile) return false
   if (!state.activeProject || !await saveDraft()) return false
   const content = editorMarkdown()
   if (isDraftEmpty(content)) { setCompactLog("终稿内容为空，请先完成正文。"); return false }
@@ -907,7 +922,7 @@ async function saveFinal() {
 }
 
 async function advanceStage() {
-  if (!state.activeProject || state.busy || state.advancing) return
+  if (!state.activeProject || state.busy || state.advancing || state.projectLoading || state.previewFile) return
   state.advancing = true
   setBusy(state.busy)
   try {
@@ -1026,6 +1041,7 @@ async function createProject() {
 async function openProject(project) {
   if (state.busy || state.projectLoading) return false
   state.projectLoading = true
+  setBusy(state.busy)
   try {
     if (state.activeProject && !state.saveConflict && !await saveDraft()) return false
     cacheProject()
@@ -1037,6 +1053,7 @@ async function openProject(project) {
     state.projectEpoch += 1
     state.activeProject = project.name
     state.draftPath = targetPath
+    state.previewFile = null
     state.pendingTasks = {}
     clearAttachments()
     closeMentionMenu()
@@ -1073,7 +1090,48 @@ async function openProject(project) {
     if (state.cloud) await recoverTasks()
     return true
   } catch (error) { handleError(error); return false }
-  finally { state.projectLoading = false }
+  finally { state.projectLoading = false; setBusy(state.busy) }
+}
+
+function closeFilePreview() {
+  state.previewFile = null
+  renderStage()
+  draftEditor.focus()
+  setCompactLog("已打开工作稿：" + state.draftPath)
+}
+
+async function openCloudFile(path) {
+  if (state.busy || state.advancing || state.projectLoading) {
+    setCompactLog("正在处理当前任务，请完成后再打开文章。")
+    return false
+  }
+  const match = path.match(/^([^/]+)\/(draft|final)\.md$/)
+  if (!match) throw new Error("无法打开这个云端文章路径")
+  const [, project, kind] = match
+  if (state.activeProject !== project && !await openProject({ name: project })) return false
+  if (kind === "draft") {
+    closeFilePreview()
+    return true
+  }
+  if (state.busy) { setCompactLog("项目中的写作任务正在恢复，完成后可查看终稿。"); return false }
+  const epoch = state.projectEpoch
+  const userId = state.session?.user?.id
+  state.projectLoading = true
+  setBusy(state.busy)
+  try {
+    if (state.savedVersion !== state.draftVersion && !await saveDraft()) return false
+    const data = await checkedData(await apiFetch("/api/file?path=" + encodeURIComponent(path)))
+    if (epoch !== state.projectEpoch || userId !== state.session?.user?.id) return false
+    state.previewFile = { path, content: data.content }
+    renderStage()
+    setCompactLog("已打开终稿：" + path)
+    return true
+  } finally {
+    if (epoch === state.projectEpoch) {
+      state.projectLoading = false
+      setBusy(state.busy)
+    }
+  }
 }
 async function recoverTasks() {
   const epoch = state.projectEpoch
@@ -1128,12 +1186,17 @@ function createTreeRow(file) {
   button.querySelector(".tree-caret").textContent = file.type === "directory" ? (file.expanded ? "▾" : "▸") : ""
   button.querySelector(".file-name").textContent = file.name
   button.querySelector(".file-kind").textContent = file.type === "directory" ? "目录" : "MD"
-  button.onclick = safely(async () => {
+  button.onclick = safely(async (event) => {
     if (file.type === "directory") {
-      state.expandedDirs.has(file.path) ? state.expandedDirs.delete(file.path) : state.expandedDirs.add(file.path)
+      if (state.cloud && file.depth === 1 && !event.target.closest(".tree-caret")) {
+        if (!await openCloudFile(file.path + "/draft.md")) return
+        state.expandedDirs.add(file.path)
+      } else {
+        state.expandedDirs.has(file.path) ? state.expandedDirs.delete(file.path) : state.expandedDirs.add(file.path)
+      }
       await renderFileTree()
     } else {
-      await attachWorkspaceFile(file.path)
+      await (state.cloud ? openCloudFile(file.path) : attachWorkspaceFile(file.path))
     }
   })
   return button
@@ -1249,6 +1312,7 @@ async function handleDroppedFiles(event) {
 }
 
 async function openDirectoryChooser(path = state.workspaceRoot) {
+  if (state.projectLoading) return
   if (state.cloud) {
     if (state.busy || (state.activeProject && !state.saveConflict && !await saveDraft())) return
     clearTimeout(state.autosaveTimer)
@@ -1256,6 +1320,7 @@ async function openDirectoryChooser(path = state.workspaceRoot) {
     state.projectEpoch += 1
     state.activeProject = null
     state.draftPath = ""
+    state.previewFile = null
     state.chat = []
     state.currentStep = "topic"
     state.completedSteps = new Set()
@@ -1352,7 +1417,7 @@ $("#projectNameInput").addEventListener("keydown", (event) => {
 })
 $("#sendButton").addEventListener("click", safely(() => runStepTask($("#promptInput").value.trim())))
 $("#stageActionButton").addEventListener("click", safely(advanceStage))
-$("#saveDraftButton").addEventListener("click", safely(saveDraft))
+$("#saveDraftButton").addEventListener("click", safely(() => state.previewFile ? closeFilePreview() : saveDraft()))
 $("#saveFinalButton").addEventListener("click", safely(saveFinal))
 $("#refreshFiles").addEventListener("click", safely(renderFileTree))
 $("#chooseWorkspace").addEventListener("click", safely(() => openDirectoryChooser()))
@@ -1508,6 +1573,8 @@ function resetWorkspace() {
   state.pendingTasks = {}
   state.activeProject = null
   state.draftPath = ""
+  state.previewFile = null
+  state.projectLoading = false
   state.styleFingerprint = ""
   state.saveConflict = false
   state.recoveryDrafts = []
@@ -1524,6 +1591,7 @@ function resetWorkspace() {
   clearAttachments()
   closeMentionMenu()
   setDraftMarkdown("")
+  renderStage()
   $("#promptInput").value = ""
   $("#projectList").innerHTML = ""
   $("#fileTree").innerHTML = ""

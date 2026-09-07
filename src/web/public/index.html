@@ -105,7 +105,7 @@
         <section id="writingStage" class="writing-stage" hidden>
           <div class="draft-header">
             <div>
-              <p class="eyebrow">Draft</p>
+              <p id="documentKind" class="eyebrow">工作稿 · draft.md</p>
               <h2 id="activeProjectName">工作稿</h2>
             </div>
             <div class="draft-actions">
@@ -116,6 +116,7 @@
           </div>
           <div id="writingPhaseNotice" class="phase-notice"></div>
           <article id="draftEditor" class="draft-editor markdown-render" contenteditable="true" role="textbox" aria-label="编辑文章草稿"></article>
+          <article id="filePreview" class="draft-editor markdown-render" aria-label="查看已保存的终稿" hidden></article>
           <div id="compactLog" class="compact-log"></div>
         </section>
       </main>

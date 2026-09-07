@@ -15,7 +15,7 @@ async function setup(fetcher?: (url: string, init: any) => Promise<Response>) {
   w.Response = Response
   w.AbortController = AbortController
   w.fetch = fetcher || (async () => Response.json({ files: [], projects: [], configured: true, state: {}, tasks: [] }))
-  w.eval(source + "\nwindow.testApp = {state, editorMarkdown, setDraftMarkdown, renderTask, runStepTask, saveDraft, advanceStage, apiFetch, openProject, logout, renderProcessSteps, selectMention, attachWorkspaceFile};")
+  w.eval(source + "\nwindow.testApp = {state, editorMarkdown, setDraftMarkdown, renderTask, runStepTask, saveDraft, advanceStage, apiFetch, openProject, openCloudFile, createTreeRow, saveFinal, logout, renderProcessSteps, selectMention, attachWorkspaceFile};")
   await Promise.resolve()
   const app = w.testApp
   app.state.session = { access_token: "old", refresh_token: "refresh", user: { id: "user-1" } }
@@ -25,6 +25,101 @@ async function setup(fetcher?: (url: string, init: any) => Promise<Response>) {
 }
 afterEach(() => { windows.splice(0).forEach(w => w.close()) })
 const tick = () => new Promise(resolve => setTimeout(resolve, 0))
+
+test("clicking a cloud draft opens its article and project history rather than attaching a reference", async () => {
+  const requests: string[] = []
+  const { w, app, editor } = await setup(async (url) => {
+    requests.push(url)
+    if (url.startsWith("/api/file?")) return Response.json({ content: "# 打开的文章\n\n正文", updatedAt: "v1" })
+    return Response.json({ state: { currentStep: "draft", chat: [{ role: "user", content: "项目对话" }] }, tasks: [] })
+  })
+  app.state.cloud = true
+  app.state.activeProject = null
+  const row = app.createTreeRow({ path: "另一项目/draft.md", name: "draft.md", type: "markdown" })
+  await row.onclick({ target: row })
+  expect(editor.textContent).toContain("打开的文章")
+  expect(w.document.querySelector("#writingStage").hidden).toBe(false)
+  expect(app.state.activeProject).toBe("另一项目")
+  expect(app.state.currentStep).toBe("draft")
+  expect(app.state.chat[0].content).toBe("项目对话")
+  expect(app.state.attachments).toHaveLength(0)
+  expect(requests.some(url => url.startsWith("/api/reference?"))).toBe(false)
+})
+
+test("a project name opens its draft while the folder caret only expands or collapses", async () => {
+  let reads = 0
+  const { app } = await setup(async (url) => {
+    if (url.startsWith("/api/file?")) { reads++; return Response.json({ content: "# 项目正文" }) }
+    return Response.json({ files: [], state: {}, tasks: [] })
+  })
+  app.state.cloud = true
+  const row = app.createTreeRow({ path: "另一个项目", name: "另一个项目", type: "directory", depth: 1 })
+  await row.onclick({ target: row.querySelector(".tree-caret") })
+  expect(app.state.activeProject).toBe("项目")
+  expect(reads).toBe(0)
+  await row.onclick({ target: row.querySelector(".file-name") })
+  expect(app.state.activeProject).toBe("另一个项目")
+  expect(app.state.expandedDirs.has("另一个项目")).toBe(true)
+  expect(app.editorMarkdown()).toContain("项目正文")
+})
+
+test("final-file preview preserves the working draft, blocks edits and still allows explicit references", async () => {
+  const writes: any[] = []
+  const { w, app, editor } = await setup(async (url, init) => {
+    if (url === "/api/files") writes.push(JSON.parse(init.body))
+    if (url.startsWith("/api/file?")) return Response.json({ content: "# 已保存的终稿\n\n终稿内容" })
+    if (url.startsWith("/api/reference?")) return Response.json({ path: "项目/final.md", content: "终稿内容", type: "markdown" })
+    return Response.json({ state: {}, tasks: [] })
+  })
+  app.state.cloud = true
+  app.setDraftMarkdown("# 尚在编辑的工作稿\n\n工作稿内容")
+  expect(await app.openCloudFile("项目/final.md")).toBe(true)
+  expect(w.document.querySelector("#filePreview").textContent).toContain("已保存的终稿")
+  expect(editor.hidden).toBe(true)
+  expect(app.editorMarkdown()).toContain("尚在编辑的工作稿")
+  expect(app.state.attachments).toHaveLength(0)
+  expect(await app.runStepTask("修改文章")).toBe(false)
+  expect(await app.saveFinal()).toBe(false)
+  await app.saveDraft()
+  expect(writes.every(write => write.path === "项目/draft.md" && write.content.includes("工作稿内容"))).toBe(true)
+  expect(w.document.querySelector("#sendButton").disabled).toBe(true)
+  await app.attachWorkspaceFile("项目/final.md")
+  expect(app.state.attachments[0].content).toBe("终稿内容")
+  w.document.querySelector("#saveDraftButton").click()
+  await tick()
+  expect(editor.hidden).toBe(false)
+  expect(editor.textContent).toContain("尚在编辑的工作稿")
+  expect(w.document.querySelector("#filePreview").hidden).toBe(true)
+  expect(w.document.querySelector("#sendButton").disabled).toBe(false)
+})
+
+test("a missing final leaves the working article visible and reports a failed open", async () => {
+  const { w, app, editor } = await setup(async () => Response.json({ error: "文件不存在" }, { status: 404 }))
+  app.state.cloud = true
+  app.setDraftMarkdown("# 保留工作稿")
+  app.state.savedVersion = app.state.draftVersion
+  const row = app.createTreeRow({ path: "项目/final.md", name: "final.md", type: "markdown" })
+  await row.onclick({ target: row })
+  expect(editor.hidden).toBe(false)
+  expect(app.editorMarkdown()).toBe("# 保留工作稿")
+  expect(w.document.querySelector("#compactLog").textContent).toContain("文件不存在")
+  expect(app.state.projectLoading).toBe(false)
+})
+
+test("a final-file response arriving after logout cannot restore the old article", async () => {
+  let respond: (response: Response) => void = () => {}
+  const { w, app } = await setup(async (url) => url.startsWith("/api/file?") ? new Promise(resolve => { respond = resolve }) : Response.json({}))
+  app.state.cloud = true
+  app.setDraftMarkdown("# 工作稿")
+  app.state.savedVersion = app.state.draftVersion
+  const opening = app.openCloudFile("项目/final.md")
+  await tick()
+  await app.logout()
+  respond(Response.json({ content: "# 旧账号终稿" }))
+  expect(await opening).toBe(false)
+  expect(w.document.querySelector("#filePreview").textContent).toBe("")
+  expect(app.state.previewFile).toBeNull()
+})
 
 test("reopening and saving a style sample does not add generated text to the sample", async () => {
   const writes: string[] = []

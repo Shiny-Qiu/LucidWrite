@@ -152,6 +152,24 @@ test("concurrent submissions only start one AI request", async () => {
   resolveTask(Response.json({ task: { id: "test-id", status: "failed", error: "test" } }))
   await Promise.all([first, second])
 })
+test("the submitted message is durable before a long model request so reloading can recover it", async () => {
+  let savedProgress: any
+  let releaseTask: (response: Response) => void = () => {}
+  const { app } = await setup(async (url, init) => {
+    if (url === "/api/project-state") savedProgress = JSON.parse(init.body).state
+    if (url === "/api/tasks") return new Promise(resolve => { releaseTask = resolve })
+    return Response.json({})
+  })
+  app.state.cloud = true
+  const pending = app.runStepTask("请结合这个新要求继续写作")
+  await tick()
+  try {
+    expect(savedProgress?.chat).toContainEqual(expect.objectContaining({ role: "user", content: "请结合这个新要求继续写作" }))
+  } finally {
+    releaseTask(Response.json({ task: { id: "test-task", status: "failed", error: "test" } }))
+    await pending
+  }
+})
 test("concurrent expired-token requests share one refresh and retry", async () => {
   let refreshes = 0
   const { app } = await setup(async (url, init = {}) => {

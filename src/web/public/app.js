@@ -697,6 +697,8 @@ async function runStepTask(userText, reason = "chat", promptOverride = "") {
   setCompactLog(currentStep().label + "处理中...", true)
   const sentAttachments = [...state.attachments]
   try {
+    await persistProgress()
+    if (epoch !== state.projectEpoch || state.session?.user?.id !== pending.userId) return false
     const response = await apiFetch("/api/tasks", {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({

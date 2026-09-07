@@ -1,5 +1,14 @@
 export const providerNames = ["deepseek", "openai", "anthropic", "google", "tavily", "firecrawl"] as const
 export type ModelSettings = { providers: Record<string, string>; defaultModel?: string }
+export const defaultWritingModel = "deepseek-v4-pro"
+
+function currentModelName(model: string) {
+  return model.trim().replace(/^(deepseek[/:])?deepseek-(?:chat|reasoner)$/, (_, prefix = "") => prefix + defaultWritingModel)
+}
+
+export function writingModelName(settings: ModelSettings) {
+  return currentModelName(settings.defaultModel?.trim() || process.env.EDITAI_LLM_MODEL || process.env.DEEPSEEK_MODEL || defaultWritingModel)
+}
 type Turn = { role: "user" | "assistant"; content: string }
 type Input = { message: string; conversation: Turn[]; mode: string; searchQuery?: string }
 
@@ -65,11 +74,12 @@ async function searchEvidence(input: Input, settings: ModelSettings) {
 
 export async function callWritingModel(input: Input, settings: ModelSettings): Promise<string> {
   const selected = settings.defaultModel?.trim()
-  let model = selected || process.env.EDITAI_LLM_MODEL || process.env.DEEPSEEK_MODEL || "deepseek-chat"
+  let model = writingModelName(settings)
   let provider = model.startsWith("claude") ? "anthropic" : model.startsWith("gemini") ? "google" : /^(gpt-|o[1-9])/.test(model) ? "openai" : "deepseek"
   const prefix = model.match(/^(deepseek|openai|anthropic|google)[/:](.+)$/)
   if (prefix) { provider = prefix[1]!; model = prefix[2]! }
-  const useGeneric = Boolean(!settings.providers[provider] && process.env.EDITAI_LLM_API_KEY && (!selected || selected === process.env.EDITAI_LLM_MODEL))
+  const useGeneric = Boolean(!settings.providers[provider] && process.env.EDITAI_LLM_API_KEY &&
+    (!selected || currentModelName(selected) === writingModelName({ providers: {} })))
   const key = settings.providers[provider] || (useGeneric ? process.env.EDITAI_LLM_API_KEY : "") || keyFor(provider, settings)
   if (!key) throw new Error("尚未配置 " + provider + " API Key，请在设置中配置后重试")
   const evidence = await searchEvidence(input, settings)

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test } from "bun:test"
-import { callWritingModel } from "../../src/web/cloud-model"
+import { callWritingModel, writingModelName } from "../../src/web/cloud-model"
 
 const originalFetch = globalThis.fetch
 const originalEnv = { ...process.env }
@@ -16,6 +16,33 @@ beforeEach(() => {
   }) as typeof fetch
 })
 afterEach(() => { globalThis.fetch = originalFetch; process.env = { ...originalEnv } })
+
+test("DeepSeek defaults to V4 Pro and only returns the final answer from thinking responses", async () => {
+  result.choices[0].message.reasoning_content = "internal reasoning"
+  const output = await callWritingModel(input, { providers: { deepseek: "own-key" } })
+  expect(requests[0]!.body.model).toBe("deepseek-v4-pro")
+  expect(requests[0]!.url).toBe("https://api.deepseek.com/v1/chat/completions")
+  expect(output).not.toContain("internal reasoning")
+})
+
+test("retired DeepSeek names resolve to Pro while explicit Flash and other providers are preserved", () => {
+  for (const model of ["deepseek-chat", "deepseek-reasoner", "deepseek/deepseek-chat"]) {
+    expect(writingModelName({ providers: {}, defaultModel: model })).toBe(model.includes("/") ? "deepseek/deepseek-v4-pro" : "deepseek-v4-pro")
+  }
+  for (const model of ["deepseek-v4-flash", "openai/gpt-test", "anthropic/claude-test"]) {
+    expect(writingModelName({ providers: {}, defaultModel: model })).toBe(model)
+  }
+})
+
+test("upgrading the server's legacy model keeps the configured gateway credential usable", async () => {
+  process.env.EDITAI_LLM_API_KEY = "server-key"
+  process.env.EDITAI_LLM_MODEL = "deepseek-chat"
+  process.env.EDITAI_LLM_BASE_URL = "https://api.deepseek.com"
+  expect(writingModelName({ providers: {} })).toBe("deepseek-v4-pro")
+  await callWritingModel(input, { providers: {}, defaultModel: "deepseek-v4-pro" })
+  expect(requests[0]!.headers.get("Authorization")).toBe("Bearer server-key")
+  expect(requests[0]!.body.model).toBe("deepseek-v4-pro")
+})
 
 test("Anthropic uses native Messages requests and excludes non-text response blocks", async () => {
   result = { content: [{ type: "thinking", thinking: "private" }, { type: "text", text: "## 对话回复\n完成" }] }

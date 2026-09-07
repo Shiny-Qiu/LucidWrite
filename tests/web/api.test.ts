@@ -133,11 +133,11 @@ test("slow model requests send a response before generation finishes and finish 
 })
 
 test("settings persist while secret values stay out of the response", async () => {
-  const response = await call("/api/settings", "PUT", { providers: { deepseek: "private-test-key" }, defaultModel: "deepseek-reasoner" })
+  const response = await call("/api/settings", "PUT", { providers: { deepseek: "private-test-key" }, defaultModel: "deepseek-v4-pro" })
   expect(response.ok).toBe(true)
   expect(await response.text()).not.toContain("private-test-key")
   const saved = await (await call("/api/settings")).json()
-  expect(saved.defaultModel).toBe("deepseek-reasoner")
+  expect(saved.defaultModel).toBe("deepseek-v4-pro")
   expect(db.user_settings[0]?.providers.deepseek).toBe("private-test-key")
 })
 

@@ -1,5 +1,5 @@
 /** Vercel Web Fetch API entry point. Keep cloud routes independent of Bun/filesystem APIs. */
-import { callWritingModel, publicProviders, type ModelSettings, providerNames } from "../src/web/cloud-model"
+import { callWritingModel, publicProviders, writingModelName, type ModelSettings, providerNames } from "../src/web/cloud-model"
 
 export const config = { runtime: "edge" }
 
@@ -164,7 +164,7 @@ async function settingsFor(auth: Auth): Promise<ModelSettings> {
 }
 
 function publicSettings(settings: ModelSettings) {
-  return { providers: publicProviders(settings), defaultModel: settings.defaultModel || process.env.EDITAI_LLM_MODEL || process.env.DEEPSEEK_MODEL || "", settingsPath: "云端个人设置" }
+  return { providers: publicProviders(settings), defaultModel: writingModelName(settings), settingsPath: "云端个人设置" }
 }
 
 async function authRoute(req: Request, kind: string) {

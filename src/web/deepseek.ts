@@ -32,7 +32,7 @@ export function hasDeepSeekConfig(): boolean {
 }
 
 export function getDeepSeekModel(): string {
-  return process.env.EDITAI_LLM_MODEL || process.env.DEEPSEEK_MODEL || "deepseek-chat"
+  return process.env.EDITAI_LLM_MODEL || process.env.DEEPSEEK_MODEL || "deepseek-v4-pro"
 }
 
 export async function runDeepSeekTask(input: BuildPromptInput): Promise<DeepSeekResult> {

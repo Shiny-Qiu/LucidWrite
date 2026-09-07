@@ -152,7 +152,7 @@
           </button>
         </div>
 
-        <p class="settings-note">Key 留空时保留原值。模型支持 deepseek-chat、OpenAI、Claude、Gemini；也可填 服务商/模型名。Tavily 或 Firecrawl 用于事实核查时联网检索。</p>
+        <p class="settings-note">Key 留空时保留原值。DeepSeek 默认使用 deepseek-v4-pro，也可选 deepseek-v4-flash；支持 OpenAI、Claude、Gemini，以及 服务商/模型名。Tavily 或 Firecrawl 用于事实核查时联网检索。</p>
         <div class="settings-grid">
           <label>DeepSeek<input id="deepseekKey" type="password" placeholder="留空保留已保存的 Key" /></label>
           <label>OpenAI<input id="openaiKey" type="password" placeholder="sk-..." /></label>
@@ -160,7 +160,7 @@
           <label>Google<input id="googleKey" type="password" placeholder="AIza..." /></label>
           <label>Tavily<input id="tavilyKey" type="password" placeholder="tvly-..." /></label>
           <label>Firecrawl<input id="firecrawlKey" type="password" placeholder="fc-..." /></label>
-          <label>Default model<input id="defaultModel" type="text" placeholder="deepseek-chat" /></label>
+          <label>Default model<input id="defaultModel" type="text" placeholder="deepseek-v4-pro" /></label>
         </div>
 
         <div class="settings-actions">

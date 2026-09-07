@@ -39,6 +39,8 @@
 
 **数据库迁移完成前不要把此版本提升到生产。** 新接口依赖新增表和字段。当前生产升级待 Supabase 已登录会话和真实测试账号完成验收。
 
+修复分支的 GitHub Web checks 和 Vercel Preview 构建均已成功。草稿 PR：https://github.com/Shiny-Qiu/LucidWrite/pull/1 。首页功能说明已同步纠正云端存储和风格样本的实际使用方式。
+
 ## 生产验收清单
 
 - 注册确认邮件进入 /app；登录错误反馈正确；令牌过期后仍可保存。

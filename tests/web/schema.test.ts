@@ -64,3 +64,15 @@ test("task records and workflow progress remain scoped to their project owner", 
   await asUser(userA, "update projects set state=$1 where id=$2", [{ currentStep: "draft" }, projectA])
   expect((await asUser(userB, "select state from projects where id=$1", [projectA])).rows).toHaveLength(0)
 })
+
+test("only the owner can delete a project, with draft, final and task rows cascading atomically", async () => {
+  const project = "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+  await asUser(userA, "insert into projects(id,user_id,name,state) values ($1,$2,'删除验收',$3)", [project, userA, { chat: [{ content: "对话" }] }])
+  for (const table of ["drafts", "finals"]) await asUser(userA, `insert into ${table}(project_id,user_id,content) values ($1,$2,'正文')`, [project, userA])
+  await asUser(userA, "insert into writing_tasks(project_id,user_id,project_name,mode,status) values ($1,$2,'删除验收','write','completed')", [project, userA])
+  expect((await asUser(userB, "delete from projects where id=$1 returning id", [project])).rows).toHaveLength(0)
+  expect((await asUser(userA, "select * from drafts where project_id=$1", [project])).rows).toHaveLength(1)
+  expect((await asUser(userA, "delete from projects where id=$1 returning id", [project])).rows).toEqual([{ id: project }])
+  for (const table of ["drafts", "finals", "writing_tasks"]) expect((await db.query(`select * from ${table} where project_id=$1`, [project])).rows).toHaveLength(0)
+  expect((await db.query("select id from projects where id in ($1,$2)", [projectA, projectB])).rows).toHaveLength(2)
+})

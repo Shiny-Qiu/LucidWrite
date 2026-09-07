@@ -31,7 +31,11 @@ export function createServicesFixture() {
         result = result.slice(0, Number(url.searchParams.get("limit")) || result.length)
         return Response.json(result)
       }
-      if (method === "DELETE") { db[table] = rows.filter(r => !matching.includes(r)); return new Response(null, { status: 204 }) }
+      if (method === "DELETE") {
+        db[table] = rows.filter(r => !matching.includes(r))
+        if (table === "projects") for (const child of ["drafts", "finals", "writing_tasks"]) db[child] = db[child]!.filter(row => !matching.some(p => p.id === row.project_id))
+        return headers.get("Prefer")?.includes("return=representation") ? Response.json(matching) : new Response(null, { status: 204 })
+      }
       if (method === "PATCH") { matching.forEach(r => Object.assign(r, body)); return Response.json(matching) }
       if (method === "POST") {
         if (body.user_id !== user.id || (body.project_id && !db.projects!.some(p => p.id === body.project_id && p.user_id === user.id))) return Response.json({ code: "42501" }, { status: 403 })

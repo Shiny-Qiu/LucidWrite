@@ -57,7 +57,11 @@ beforeEach(() => {
         return Response.json([existing || row])
       }
       if (method === "PATCH") { matching.forEach(row => Object.assign(row, body)); return Response.json(matching) }
-      if (method === "DELETE") { db[table] = rows.filter(row => !matching.includes(row)); return new Response(null, { status: 204 }) }
+      if (method === "DELETE") {
+        db[table] = rows.filter(row => !matching.includes(row))
+        if (table === "projects") for (const child of ["drafts", "finals", "writing_tasks"]) db[child] = db[child]!.filter(row => !matching.some(p => p.id === row.project_id))
+        return new Headers(init.headers).get("Prefer")?.includes("return=representation") ? Response.json(matching) : new Response(null, { status: 204 })
+      }
     }
     throw new Error(`Unexpected request: ${method} ${url}`)
   }) as typeof fetch
@@ -95,6 +99,45 @@ test("cloud file tree and references expose persisted projects and drafts", asyn
 test("invalid names and nested file paths are rejected", async () => {
   expect((await call("/api/projects", "POST", { name: "bad/name" })).status).toBe(400)
   expect((await call("/api/files", "POST", { path: "测试/elsewhere/draft.md", content: "bad" })).status).toBe(400)
+})
+
+test("deleting a project removes it from files and references and prevents subsequent saves", async () => {
+  db.finals.push({ project_id: "project-1", user_id: "user-1", content: "final" })
+  db.writing_tasks.push({ project_id: "project-1", user_id: "user-1", status: "completed" })
+  const tree = await (await call("/api/files")).json()
+  expect(tree.files[0].projectId).toBe("project-1")
+  const response = await call("/api/projects", "DELETE", { name: "测试", id: "project-1" })
+  expect(response.ok).toBe(true)
+  expect(await response.json()).toEqual({ deleted: true, name: "测试", id: "project-1" })
+  for (const table of ["projects", "drafts", "finals", "writing_tasks"]) expect(db[table]).toHaveLength(0)
+  expect((await (await call("/api/references")).json()).references).toHaveLength(0)
+  expect((await call("/api/files", "POST", { path: "测试/draft.md", content: "late save" })).status).toBe(404)
+})
+
+test("deleting requires the current owned project ID and does not erase a same-name replacement", async () => {
+  db.projects.push({ id: "foreign-id", user_id: "user-2", name: "别人的文章" })
+  expect((await call("/api/projects", "DELETE", { name: "别人的文章", id: "foreign-id" })).status).toBe(404)
+  expect((await call("/api/projects", "DELETE", { name: "测试", id: "old-project-id" })).status).toBe(409)
+  expect((await call("/api/projects", "DELETE", { name: "测试" })).status).toBe(400)
+  expect(db.projects).toHaveLength(2)
+  expect(requests.filter(r => r.method === "DELETE")).toHaveLength(0)
+})
+
+test("running generation blocks deletion but expired tasks do not", async () => {
+  db.writing_tasks.push({ project_id: "project-1", user_id: "user-1", status: "running", created_at: new Date().toISOString() })
+  expect((await call("/api/projects", "DELETE", { name: "测试", id: "project-1" })).status).toBe(409)
+  expect(db.projects).toHaveLength(1)
+  db.writing_tasks[0].created_at = new Date(Date.now() - 300_000).toISOString()
+  expect((await call("/api/projects", "DELETE", { name: "测试", id: "project-1" })).ok).toBe(true)
+})
+
+test("a rejected database delete preserves the article and reports failure", async () => {
+  failWrites = true
+  const response = await call("/api/projects", "DELETE", { name: "测试", id: "project-1" })
+  expect(response.ok).toBe(false)
+  expect((await response.json()).deleted).not.toBe(true)
+  expect(db.projects).toHaveLength(1)
+  expect(db.drafts[0].content).toBe("# 原稿")
 })
 
 test("provider HTTP failures and empty output cannot complete a task", async () => {

@@ -15,7 +15,7 @@ async function setup(fetcher?: (url: string, init: any) => Promise<Response>) {
   w.Response = Response
   w.AbortController = AbortController
   w.fetch = fetcher || (async () => Response.json({ files: [], projects: [], configured: true, state: {}, tasks: [] }))
-  w.eval(source + "\nwindow.testApp = {state, editorMarkdown, setDraftMarkdown, renderTask, runStepTask, saveDraft, advanceStage, apiFetch, openProject, openCloudFile, createTreeRow, saveFinal, logout, renderProcessSteps, selectMention, attachWorkspaceFile};")
+  w.eval(source + "\nwindow.testApp = {state, editorMarkdown, setDraftMarkdown, renderTask, runStepTask, saveDraft, advanceStage, apiFetch, openProject, openCloudFile, createTreeRow, saveFinal, logout, renderProcessSteps, selectMention, attachWorkspaceFile, requestDeleteProject, confirmDeleteProject};")
   await Promise.resolve()
   const app = w.testApp
   app.state.session = { access_token: "old", refresh_token: "refresh", user: { id: "user-1" } }
@@ -25,6 +25,102 @@ async function setup(fetcher?: (url: string, init: any) => Promise<Response>) {
 }
 afterEach(() => { windows.splice(0).forEach(w => w.close()) })
 const tick = () => new Promise(resolve => setTimeout(resolve, 0))
+
+test("the project trash button asks for confirmation and cancel or Escape never deletes", async () => {
+  const requests: string[] = []
+  const { w, app } = await setup(async (url, init) => { requests.push(init?.method || "GET"); return Response.json({}) })
+  app.state.cloud = true
+  app.setDraftMarkdown("# 保留正文")
+  const row = app.createTreeRow({ name: "待删除 <文章>", path: "待删除 <文章>", type: "directory", depth: 1, projectId: "target-id" })
+  w.document.querySelector("#fileTree").append(row)
+  row.querySelector(".tree-delete").click()
+  expect(w.document.querySelector("#deleteProjectDialog").open).toBe(true)
+  expect(w.document.querySelector("#deleteProjectDescription").textContent).toContain("待删除 <文章>")
+  expect(w.document.activeElement.id).toBe("cancelDeleteProject")
+  expect(app.state.activeProject).toBe("项目")
+  w.document.querySelector("#cancelDeleteProject").click()
+  expect(w.document.querySelector("#deleteProjectDialog").open).toBe(false)
+  row.querySelector(".tree-delete").click()
+  w.document.querySelector("#deleteProjectDialog").dispatchEvent(new w.Event("cancel", { cancelable: true }))
+  expect(app.state.deleteTarget).toBeNull()
+  expect(requests).not.toContain("DELETE")
+  expect(app.editorMarkdown()).toBe("# 保留正文")
+})
+
+test("deleting the active project waits for prior saves then clears its editor, history, preview and cache", async () => {
+  const deletes: any[] = []
+  const { w, app } = await setup(async (url, init) => {
+    if (init?.method === "DELETE") { deletes.push(JSON.parse(init.body)); return Response.json({ deleted: true, id: "project-id" }) }
+    return Response.json({ projects: [], files: [] })
+  })
+  app.state.cloud = true
+  app.setDraftMarkdown("# 待删除正文")
+  app.state.chat = [{ role: "user", content: "旧对话" }]
+  app.state.previewFile = { path: "项目/final.md", content: "终稿" }
+  app.state.completedSteps.add("topic")
+  app.state.recoveryDrafts = [{ content: "旧副本" }]
+  app.state.expandedDirs.add("项目")
+  w.localStorage.setItem("lucidwrite_project:user-1::项目", "old cache")
+  let release = () => {}
+  app.state.saveQueue = new Promise<void>(resolve => { release = resolve })
+  app.requestDeleteProject({ path: "项目", projectId: "project-id" })
+  const pending = app.confirmDeleteProject()
+  await tick()
+  expect(deletes).toHaveLength(0)
+  expect(await app.saveDraft()).toBe(false)
+  expect(await app.openProject({ name: "另一个项目" })).toBe(false)
+  expect(await app.runStepTask("写作")).toBe(false)
+  expect(w.document.querySelector("#confirmDeleteProject").disabled).toBe(true)
+  release()
+  expect(await pending).toBe(true)
+  expect(deletes).toEqual([{ name: "项目", id: "project-id" }])
+  expect(app.state.activeProject).toBeNull()
+  expect(app.state.previewFile).toBeNull()
+  expect(app.state.chat).toHaveLength(0)
+  expect(app.state.recoveryDrafts).toHaveLength(0)
+  expect(app.state.completedSteps.size).toBe(0)
+  expect(app.editorMarkdown()).toBe("")
+  expect(w.localStorage.getItem("lucidwrite_project:user-1::项目")).toBeNull()
+  expect(w.document.querySelector("#projectGate").hidden).toBe(false)
+  expect(w.document.querySelector("#filePreview").textContent).toBe("")
+  expect(w.document.querySelector("#deleteProjectDialog").open).toBe(false)
+})
+
+test("deleting another project keeps the current article and removes only matching attachments", async () => {
+  const { w, app } = await setup(async (url, init) => init?.method === "DELETE" ? Response.json({ deleted: true, id: "other-id" }) : Response.json({ projects: [], files: [] }))
+  app.state.cloud = true
+  app.setDraftMarkdown("# 当前正文")
+  app.state.chat = [{ role: "user", content: "当前对话" }]
+  app.state.savedVersion = app.state.draftVersion
+  app.state.attachments = [{ source: "旧项目/final.md" }, { source: "旧项目二/draft.md" }]
+  app.requestDeleteProject({ path: "旧项目", projectId: "other-id" })
+  expect(await app.confirmDeleteProject()).toBe(true)
+  expect(app.editorMarkdown()).toBe("# 当前正文")
+  expect(app.state.chat[0].content).toBe("当前对话")
+  expect(app.state.activeProject).toBe("项目")
+  expect(app.state.attachments).toEqual([{ source: "旧项目二/draft.md" }])
+})
+
+test("delete failure keeps the project and allows retry; refresh failure after deletion is not reported as a failed delete", async () => {
+  let failDelete = true
+  const { w, app } = await setup(async (url, init) => {
+    if (init?.method === "DELETE") return failDelete ? Response.json({ error: "暂时无法删除" }, { status: 502 }) : Response.json({ deleted: true, id: "project-id" })
+    return Response.json({ error: "离线" }, { status: 502 })
+  })
+  app.state.cloud = true
+  app.setDraftMarkdown("# 保留正文")
+  app.requestDeleteProject({ path: "项目", projectId: "project-id" })
+  expect(await app.confirmDeleteProject()).toBe(false)
+  expect(app.editorMarkdown()).toBe("# 保留正文")
+  expect(app.state.activeProject).toBe("项目")
+  expect(w.document.querySelector("#deleteProjectDialog").open).toBe(true)
+  expect(w.document.querySelector("#deleteProjectError").textContent).toBe("暂时无法删除")
+  expect(w.document.querySelector("#confirmDeleteProject").disabled).toBe(false)
+  failDelete = false
+  expect(await app.confirmDeleteProject()).toBe(true)
+  expect(app.state.activeProject).toBeNull()
+  expect(w.document.querySelector("#compactLog").textContent).toContain("已删除「项目」，列表刷新失败")
+})
 
 test("clicking a cloud draft opens its article and project history rather than attaching a reference", async () => {
   const requests: string[] = []
@@ -311,7 +407,7 @@ test("settings clicks prevent native dialog submission synchronously", async () 
   await tick()
 })
 
-test("full cloud workflow creates, writes, refines, checks, scores, saves and reloads", async () => {
+test("full cloud workflow creates, writes, refines, checks, scores, saves, reloads and deletes", async () => {
   const { default: handler } = await import("../../api/index")
   const { createServicesFixture } = await import("./fixtures")
   const fixture = createServicesFixture()
@@ -362,6 +458,15 @@ test("full cloud workflow creates, writes, refines, checks, scores, saves and re
     expect(app.state.busy).toBe(false)
     const other = await handler(new Request("http://localhost/api/projects", { headers: { Authorization: "Bearer " + fixture.session(fixture.users[1]!).access_token } }))
     expect((await other.json()).projects).toHaveLength(0)
+    const projectId = fixture.db.projects[0]!.id
+    w.document.querySelector(".tree-delete").click()
+    expect(app.state.deleteTarget.id).toBe(projectId)
+    expect(await app.confirmDeleteProject()).toBe(true)
+    for (const table of ["projects", "drafts", "finals", "writing_tasks"]) expect(fixture.db[table]).toHaveLength(0)
+    expect(w.document.querySelector(".tree-delete")).toBeNull()
+    expect(w.document.querySelector("#projectList").children).toHaveLength(0)
+    expect((await (await app.apiFetch("/api/references")).json()).references).toHaveLength(0)
+    expect(w.localStorage.getItem(`lucidwrite_project:${fixture.users[0]!.id}::完整验收项目`)).toBeNull()
   } finally { globalThis.fetch = original; process.env = env }
 })
 

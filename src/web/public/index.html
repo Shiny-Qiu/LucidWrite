@@ -141,6 +141,18 @@
       </aside>
     </div>
 
+    <dialog id="deleteProjectDialog" class="settings-dialog" aria-labelledby="deleteProjectTitle" aria-describedby="deleteProjectDescription">
+      <div class="settings-content">
+        <div class="settings-header"><h2 id="deleteProjectTitle">删除文章项目</h2></div>
+        <p id="deleteProjectDescription" class="settings-note"></p>
+        <p id="deleteProjectError" class="delete-error" role="alert"></p>
+        <div class="settings-actions">
+          <button id="cancelDeleteProject" type="button" class="secondary-button" autofocus>取消</button>
+          <button id="confirmDeleteProject" type="button" class="send-button danger-button">确认删除</button>
+        </div>
+      </div>
+    </dialog>
+
     <dialog id="settingsDialog" class="settings-dialog">
       <form method="dialog" class="settings-content">
         <div class="settings-header">

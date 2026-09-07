@@ -17,6 +17,8 @@ const state = {
   draftPath: "",
   previewFile: null,
   expandedDirs: new Set(["."]),
+  fileTreeVersion: 0,
+  projectListVersion: 0,
   attachments: [],
   chat: [],
   pendingTasks: {},
@@ -46,6 +48,8 @@ const state = {
   refreshPromise: null,
   appliedTasks: [],
   projectLoading: false,
+  deleteTarget: null,
+  deletingProject: false,
   supabase: null,
 }
 
@@ -382,9 +386,9 @@ function invalidateReports() {
 }
 function setBusy(busy) {
   state.busy = busy
-  $("#sendButton").disabled = busy || state.advancing || state.projectLoading || Boolean(state.previewFile)
-  $("#stageActionButton").disabled = busy || state.advancing || state.projectLoading || Boolean(state.previewFile)
-  $("#chooseWorkspace").disabled = busy || state.advancing || state.projectLoading
+  $("#sendButton").disabled = busy || state.advancing || state.projectLoading || state.deletingProject || Boolean(state.previewFile)
+  $("#stageActionButton").disabled = busy || state.advancing || state.projectLoading || state.deletingProject || Boolean(state.previewFile)
+  $("#chooseWorkspace").disabled = busy || state.advancing || state.projectLoading || state.deletingProject
   renderProcessSteps()
 }
 function projectStorageKey(project = state.activeProject) {
@@ -445,7 +449,7 @@ function nextStepId() {
 }
 
 async function setStep(stepId) {
-  if (state.busy || state.advancing || state.projectLoading || state.previewFile || !steps.some(step => step.id === stepId)) return
+  if (state.busy || state.advancing || state.projectLoading || state.deletingProject || state.previewFile || !steps.some(step => step.id === stepId)) return
   const reached = Math.max(steps.findIndex(step => step.id === state.currentStep), ...[...state.completedSteps].map(id => steps.findIndex(step => step.id === id) + 1))
   if (steps.findIndex(step => step.id === stepId) > reached || !await saveDraft()) return
   state.currentStep = stepId
@@ -468,7 +472,7 @@ function renderProcessSteps() {
     button.classList.toggle("active", id === state.currentStep)
     button.classList.toggle("done", state.completedSteps.has(id))
     const reached = Math.max(steps.findIndex(step => step.id === state.currentStep), ...[...state.completedSteps].map(done => steps.findIndex(step => step.id === done) + 1))
-    button.disabled = state.busy || state.advancing || state.projectLoading || Boolean(state.previewFile) || steps.findIndex(step => step.id === id) > reached
+    button.disabled = state.busy || state.advancing || state.projectLoading || state.deletingProject || Boolean(state.previewFile) || steps.findIndex(step => step.id === id) > reached
     button.setAttribute("aria-disabled", String(button.disabled))
     button.textContent = steps.find((step) => step.id === id)?.label || id
   })
@@ -691,7 +695,7 @@ function reportFromOutput(output) {
 }
 
 async function runStepTask(userText, reason = "chat", promptOverride = "") {
-  if (!state.activeProject || state.busy || state.projectLoading || state.previewFile || !userText.trim()) return false
+  if (!state.activeProject || state.busy || state.projectLoading || state.deletingProject || state.previewFile || !userText.trim()) return false
   setBusy(true)
   const epoch = state.projectEpoch
   const project = state.activeProject
@@ -857,7 +861,7 @@ async function renderTask(task) {
 }
 
 async function saveDraft() {
-  if (!state.draftPath || !state.session) return false
+  if (!state.draftPath || !state.session || state.deletingProject) return false
   clearTimeout(state.autosaveTimer)
   cacheProject()
   const snapshot = {
@@ -922,7 +926,7 @@ async function saveFinal() {
 }
 
 async function advanceStage() {
-  if (!state.activeProject || state.busy || state.advancing || state.projectLoading || state.previewFile) return
+  if (!state.activeProject || state.busy || state.advancing || state.projectLoading || state.deletingProject || state.previewFile) return
   state.advancing = true
   setBusy(state.busy)
   try {
@@ -1003,20 +1007,24 @@ async function loadWorkspace() {
   showProjectGate(!state.activeProject)
 }
 async function renderProjects() {
+  const version = ++state.projectListVersion
+  const userId = state.session?.user?.id
   const data = await checkedData(await apiFetch("/api/projects"))
+  if (version !== state.projectListVersion || userId !== state.session?.user?.id) return
   const list = $("#projectList")
   list.innerHTML = ""
   for (const project of data.projects ?? []) {
     const button = document.createElement("button")
     button.type = "button"
     button.className = "project-option"
+    if (project.id) button.dataset.projectId = project.id
     button.textContent = project.name
     button.addEventListener("click", safely(() => openProject(project)))
     list.appendChild(button)
   }
 }
 async function createProject() {
-  if (state.projectLoading || state.busy) return
+  if (state.projectLoading || state.busy || state.deletingProject) return
   const name = $("#projectNameInput").value.trim()
   $("#projectError").textContent = ""
   if (!name || name.length > 120 || /^[.]{1,2}$/.test(name) || /[/\\:\x00-\x1f]/.test(name)) {
@@ -1039,7 +1047,7 @@ async function createProject() {
   finally { button.disabled = false; state.projectLoading = false }
 }
 async function openProject(project) {
-  if (state.busy || state.projectLoading) return false
+  if (state.busy || state.advancing || state.projectLoading || state.deletingProject) return false
   state.projectLoading = true
   setBusy(state.busy)
   try {
@@ -1101,7 +1109,7 @@ function closeFilePreview() {
 }
 
 async function openCloudFile(path) {
-  if (state.busy || state.advancing || state.projectLoading) {
+  if (state.busy || state.advancing || state.projectLoading || state.deletingProject) {
     setCompactLog("正在处理当前任务，请完成后再打开文章。")
     return false
   }
@@ -1158,22 +1166,24 @@ async function fetchFiles(dir = ".") {
 }
 
 async function renderFileTree() {
+  const version = ++state.fileTreeVersion
   const epoch = state.projectEpoch
+  const userId = state.session?.user?.id
   const node = await buildTreeNode(".", state.cloud ? "云端项目" : "lucidwrite_note", 0)
-  if (epoch !== state.projectEpoch) return
+  if (version !== state.fileTreeVersion || epoch !== state.projectEpoch || userId !== state.session?.user?.id) return
   $("#fileTree").replaceChildren(node)
   $("#currentPath").textContent = state.notesRoot || state.workspaceRoot
 }
 
-async function buildTreeNode(dir, label, depth) {
+async function buildTreeNode(dir, label, depth, projectId) {
   const container = document.createElement("div")
   container.className = "tree-group"
   const expanded = state.expandedDirs.has(dir)
-  container.appendChild(createTreeRow({ name: label, path: dir, type: "directory", depth, expanded }))
+  container.appendChild(createTreeRow({ name: label, path: dir, type: "directory", depth, expanded, projectId }))
   if (!expanded) return container
   const data = await fetchFiles(dir)
   for (const file of data.files ?? []) {
-    container.appendChild(file.type === "directory" ? await buildTreeNode(file.path, file.name, depth + 1) : createTreeRow({ ...file, depth: depth + 1 }))
+    container.appendChild(file.type === "directory" ? await buildTreeNode(file.path, file.name, depth + 1, file.projectId) : createTreeRow({ ...file, depth: depth + 1 }))
   }
   return container
 }
@@ -1181,6 +1191,7 @@ async function buildTreeNode(dir, label, depth) {
 function createTreeRow(file) {
   const button = document.createElement("button")
   button.className = "tree-item"
+  button.type = "button"
   button.style.setProperty("--depth", String(file.depth ?? 0))
   button.innerHTML = `<span class="tree-caret"></span><span class="file-name"></span><span class="file-kind"></span>`
   button.querySelector(".tree-caret").textContent = file.type === "directory" ? (file.expanded ? "▾" : "▸") : ""
@@ -1199,7 +1210,117 @@ function createTreeRow(file) {
       await (state.cloud ? openCloudFile(file.path) : attachWorkspaceFile(file.path))
     }
   })
-  return button
+  if (!state.cloud || file.type !== "directory" || file.depth !== 1 || !file.projectId) return button
+  const entry = document.createElement("div")
+  entry.className = "tree-entry"
+  entry.dataset.projectId = file.projectId
+  const remove = document.createElement("button")
+  remove.type = "button"
+  remove.className = "icon-button tree-delete"
+  remove.title = "删除项目 " + file.name
+  remove.setAttribute("aria-label", remove.title)
+  remove.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg>'
+  remove.addEventListener("click", () => requestDeleteProject(file))
+  entry.append(button, remove)
+  return entry
+}
+
+function requestDeleteProject(file) {
+  if (!state.cloud || !file.projectId || !state.session) return
+  if (state.busy || state.advancing || state.projectLoading || state.deletingProject) {
+    setCompactLog("正在处理当前任务，请完成后再删除文章项目。")
+    return
+  }
+  state.deleteTarget = { id: file.projectId, name: file.path, userId: state.session.user.id }
+  $("#deleteProjectDescription").textContent = `确定删除「${file.path}」吗？该项目的工作稿、终稿、对话和写作进度，以及本机恢复副本将一并删除，无法恢复。`
+  $("#deleteProjectError").textContent = ""
+  $("#deleteProjectDialog").showModal()
+  $("#cancelDeleteProject").focus()
+}
+
+function cancelDeleteProject() {
+  if (state.deletingProject) return
+  state.deleteTarget = null
+  $("#deleteProjectDialog").close()
+}
+
+function clearActiveProject() {
+  clearTimeout(state.autosaveTimer)
+  stopPolling()
+  state.projectEpoch += 1
+  state.pendingTasks = {}
+  state.activeProject = null
+  state.draftPath = ""
+  state.previewFile = null
+  state.savedContent = ""
+  state.savedUpdatedAt = undefined
+  state.saveConflict = false
+  state.recoveryDrafts = []
+  restoreWorkflow({})
+  setDraftMarkdown("")
+  state.savedVersion = state.draftVersion
+  clearAttachments()
+  closeMentionMenu()
+  $("#promptInput").value = ""
+  $("#projectError").textContent = ""
+  showProjectGate(true)
+  renderStage()
+  renderChat()
+}
+
+async function confirmDeleteProject() {
+  const target = state.deleteTarget
+  if (!target || target.userId !== state.session?.user?.id || state.deletingProject || state.busy || state.advancing || state.projectLoading) return false
+  state.deletingProject = true
+  setBusy(state.busy)
+  $("#confirmDeleteProject").disabled = true
+  $("#confirmDeleteProject").textContent = "正在删除…"
+  $("#cancelDeleteProject").disabled = true
+  $("#deleteProjectError").textContent = ""
+  clearTimeout(state.autosaveTimer)
+  const cacheKey = projectStorageKey(target.name)
+  try {
+    // Let earlier saves finish before deleting, and block new saves until it finishes.
+    await state.saveQueue
+    if (target.userId !== state.session?.user?.id || state.deleteTarget !== target) return false
+    const data = await checkedData(await apiFetch("/api/projects", {
+      method: "DELETE", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: target.id, name: target.name }),
+    }))
+    if (data.deleted !== true || data.id !== target.id) throw new Error("服务器未确认删除，请刷新列表检查。")
+    if (target.userId !== state.session?.user?.id || state.deleteTarget !== target) return false
+    let cacheRemoved = true
+    try { localStorage.removeItem(cacheKey) } catch { cacheRemoved = false }
+    state.fileTreeVersion += 1
+    state.projectListVersion += 1
+    state.expandedDirs.delete(target.name)
+    if (state.activeProject === target.name) clearActiveProject()
+    else {
+      state.attachments = state.attachments.filter(file => file.source !== target.name && !file.source?.startsWith(target.name + "/"))
+      renderAttachments()
+      closeMentionMenu()
+    }
+    for (const row of document.querySelectorAll("[data-project-id]")) {
+      if (row.dataset.projectId === target.id) (row.classList.contains("tree-entry") ? row.closest(".tree-group") || row : row).remove()
+    }
+    state.deleteTarget = null
+    $("#deleteProjectDialog").close()
+    setCompactLog(`已删除「${target.name}」。${cacheRemoved ? "" : "本机缓存清理失败，请在浏览器中清理此网站的本地数据。"}`)
+    try { await renderProjects(); await renderFileTree() }
+    catch { setCompactLog(`已删除「${target.name}」，列表刷新失败，请点击左侧刷新按钮。`) }
+    return true
+  } catch (error) {
+    if (target.userId === state.session?.user?.id && state.deleteTarget === target) $("#deleteProjectError").textContent = error.message || "删除失败，请重试。"
+    return false
+  } finally {
+    state.deletingProject = false
+    $("#confirmDeleteProject").disabled = false
+    $("#confirmDeleteProject").textContent = "确认删除"
+    $("#cancelDeleteProject").disabled = false
+    setBusy(state.busy)
+    if (target.userId !== state.session?.user?.id) cancelDeleteProject()
+    if (state.activeProject && !state.saveConflict && state.savedVersion !== state.draftVersion) scheduleAutosave()
+  }
 }
 
 async function attachWorkspaceFile(path) {
@@ -1312,7 +1433,7 @@ async function handleDroppedFiles(event) {
 }
 
 async function openDirectoryChooser(path = state.workspaceRoot) {
-  if (state.projectLoading) return
+  if (state.projectLoading || state.deletingProject) return
   if (state.cloud) {
     if (state.busy || (state.activeProject && !state.saveConflict && !await saveDraft())) return
     clearTimeout(state.autosaveTimer)
@@ -1412,6 +1533,12 @@ async function saveSettings(event) {
 }
 
 $("#createProjectButton").addEventListener("click", safely(createProject))
+$("#cancelDeleteProject").addEventListener("click", cancelDeleteProject)
+$("#confirmDeleteProject").addEventListener("click", safely(confirmDeleteProject))
+$("#deleteProjectDialog").addEventListener("cancel", (event) => {
+  event.preventDefault()
+  cancelDeleteProject()
+})
 $("#projectNameInput").addEventListener("keydown", (event) => {
   if (event.key === "Enter" && !event.isComposing) safely(createProject)()
 })
@@ -1575,6 +1702,7 @@ function resetWorkspace() {
   state.draftPath = ""
   state.previewFile = null
   state.projectLoading = false
+  state.deleteTarget = null
   state.styleFingerprint = ""
   state.saveConflict = false
   state.recoveryDrafts = []

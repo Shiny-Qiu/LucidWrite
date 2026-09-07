@@ -268,6 +268,36 @@ button {
   min-width: 0;
 }
 
+.tree-entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px;
+}
+
+.tree-entry .tree-item {
+  min-width: 0;
+}
+
+.tree-delete:hover,
+.delete-error {
+  color: #b42318;
+}
+
+.delete-error:empty {
+  display: none;
+}
+
+#deleteProjectDialog {
+  width: min(480px, calc(100vw - 32px));
+  overflow-wrap: anywhere;
+}
+
+#deleteProjectDialog .danger-button {
+  background: #b42318;
+  color: #fff;
+}
+
 .tree-item {
   width: 100%;
   min-height: 34px;

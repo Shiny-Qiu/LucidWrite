@@ -254,6 +254,22 @@ async function route(req: Request): Promise<Response> {
     }
     return json({ project: { id: project.id, name, path: name, draftPath: name + "/draft.md" } }, 201)
   }
+  if (method === "DELETE" && path === "/api/projects") {
+    const body = await bodyOf(req)
+    const name = projectName(body.name)
+    const id = textField(body.id, "项目 ID", 80)
+    const project = await projectFor(auth, name)
+    // A stale tab must not delete a replacement project with the same name.
+    if (project.id !== id) throw new HttpError("项目已发生变化，请刷新列表后重试", 409)
+    const tasks = await sbRest("GET", query("writing_tasks", {
+      user_id: eq(user.id), project_id: eq(id), status: eq("running"), select: "status,created_at",
+    }), token)
+    if (tasks.some((task: any) => publicTask(task).status === "running")) throw new HttpError("该项目仍在生成文章，请等待任务结束后再删除", 409)
+    // PostgreSQL cascades the draft, final and task records in the same transaction.
+    const deleted = await sbRest("DELETE", query("projects", { id: eq(id), user_id: eq(user.id), select: "id" }), token, undefined, "return=representation")
+    if (!deleted?.some((row: any) => row.id === id)) throw new HttpError("项目已不存在，请刷新列表", 404)
+    return json({ deleted: true, id, name })
+  }
 
   if (method === "GET" && path === "/api/file") return json(await readFile(auth, url.searchParams.get("path") || ""))
   if (method === "POST" && path === "/api/files") {
@@ -291,7 +307,7 @@ async function route(req: Request): Promise<Response> {
 
   if (method === "GET" && path === "/api/files") {
     const dir = url.searchParams.get("dir") || "."
-    const files = dir === "." ? (await projects(auth)).map(p => ({ name: p.name, path: p.name, type: "directory" }))
+    const files = dir === "." ? (await projects(auth)).map(p => ({ name: p.name, path: p.name, type: "directory", projectId: p.id }))
       : (await fileRows(auth, await projectFor(auth, projectName(dir)))).map(({ content, ...file }) => file)
     return json({ ...workspace, current: dir, files })
   }

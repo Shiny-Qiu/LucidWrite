@@ -6,6 +6,7 @@
     <title>LucidWrite</title>
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
     <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/editor.css" />
   </head>
   <body>
     <!-- Auth gate — shown when user is not logged in -->
@@ -115,8 +116,32 @@
             </div>
           </div>
           <div id="writingPhaseNotice" class="phase-notice"></div>
-          <article id="draftEditor" class="draft-editor markdown-render" contenteditable="true" role="textbox" aria-label="编辑文章草稿"></article>
-          <article id="filePreview" class="draft-editor markdown-render" aria-label="查看已保存的终稿" hidden></article>
+          <div id="editorShell" class="document-editor">
+            <div id="editorToolbar" class="editor-toolbar" role="toolbar" aria-label="文档编辑工具栏"></div>
+            <div id="editorFind" class="editor-find" hidden>
+              <div><input id="documentSearch" type="search" placeholder="查找文字" aria-label="查找文字"><span id="documentMatches" aria-live="polite">0 / 0</span><button id="findPrevious" type="button" aria-label="上一个结果" title="上一个结果">↑</button><button id="findNext" type="button" aria-label="下一个结果" title="下一个结果">↓</button><button id="closeFind" type="button" aria-label="关闭查找">×</button></div>
+              <div><input id="documentReplace" placeholder="替换为" aria-label="替换为"><button id="replaceOne" type="button">替换</button><button id="replaceAll" type="button">全部替换</button></div>
+            </div>
+            <div id="editorTableTools" class="editor-context-tools" role="toolbar" aria-label="表格编辑工具" hidden></div>
+            <div id="editorImageTools" class="editor-context-tools" role="toolbar" aria-label="图片编辑工具" hidden></div>
+            <div class="editor-body">
+              <nav id="editorOutline" class="editor-outline" aria-label="文章目录" hidden></nav>
+              <div id="editorScroll" class="editor-scroll">
+                <article id="draftEditor" class="draft-editor"></article>
+                <article id="filePreview" class="draft-editor" aria-label="查看已保存的终稿" hidden></article>
+              </div>
+            </div>
+            <div class="editor-footer">
+              <button id="editorOutlineToggle" type="button" title="文章目录" aria-label="显示或隐藏文章目录"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5h13M8 12h10M8 19h13M3 5h.01M3 12h.01M3 19h.01"/></svg></button>
+              <span id="editorCount">0 字</span><span id="editorSelectionCount"></span>
+              <span id="editorHint">输入 / 插入 · ⌘/Ctrl S 保存</span>
+              <select id="editorZoom" aria-label="文档缩放"><option value="0.8">80%</option><option value="1" selected>100%</option><option value="1.2">120%</option><option value="1.5">150%</option></select>
+              <button id="editorFocusToggle" type="button" title="全屏编辑 · Esc 退出" aria-label="进入或退出全屏编辑"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5"/></svg></button>
+            </div>
+            <span id="editorMessage" class="sr-only" role="status" aria-live="polite"></span>
+            <input id="documentImport" type="file" accept=".md,.markdown,.txt,.html,.htm" hidden>
+            <input id="documentImage" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+          </div>
           <div id="compactLog" class="compact-log"></div>
         </section>
       </main>
@@ -228,6 +253,7 @@
       </form>
     </dialog>
 
+    <script src="/editor.js"></script>
     <script src="/app.js" type="module"></script>
   </body>
 </html>

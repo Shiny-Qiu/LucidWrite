@@ -138,6 +138,27 @@ const draftEditor = $("#draftEditor")
 const attachmentTray = $("#attachmentTray")
 const mentionMenu = $("#mentionMenu")
 const composerDropzone = $("#composerDropzone")
+const richEditor = window.LucidEditor.create({
+  element: draftEditor, preview: $("#filePreview"), shell: $("#editorShell"),
+  title: () => state.activeProject || "文章",
+  onChange(markdown) {
+    state.lastArticleMarkdown = markdown
+    state.editorDirty = false
+    state.draftVersion += 1
+    invalidateReports()
+    cacheProject()
+    scheduleAutosave()
+    renderStage()
+  },
+  onSave: () => safely(saveDraft)(),
+  onNotice: message => setCompactLog(message),
+  onReference(text) {
+    addAttachment({ name: "选中的正文", content: text, source: "selection:" + crypto.randomUUID(), type: "markdown" })
+    appShell.classList.remove("right-collapsed")
+    $("#promptInput").focus()
+    setCompactLog("选中文字已添加到右侧参考，请输入修改要求。")
+  },
+})
 
 function escapeHtml(value = "") {
   return value
@@ -322,61 +343,13 @@ function articleFromOutput(output, pending) {
   return reportOnly ? "" : cleaned
 }
 
-function markdownFromEditor(root) {
-  const children = (node) => [...node.childNodes].map(serialize).join("")
-  const serialize = (node) => {
-    if (node.nodeType === 3) return node.textContent.replace(/\u00a0/g, " ")
-    if (node.nodeType !== 1) return ""
-    const tag = node.tagName.toLowerCase()
-    if (["script", "style", "iframe", "object"].includes(tag)) return ""
-    if (tag === "br") return "\n"
-    if (tag === "pre") {
-      const code = node.textContent.replace(/\n$/, "")
-      const fence = code.includes("```") ? "````" : "```"
-      return "\n\n" + fence + "\n" + code + "\n" + fence + "\n\n"
-    }
-    if (tag === "table") {
-      const rows = [...node.querySelectorAll("tr")].map(row => [...row.children].map(cell => children(cell).trim().replace(/\|/g, "\\|").replace(/\n/g, "<br>")))
-      if (!rows.length) return ""
-      const line = row => "| " + row.join(" | ") + " |"
-      return "\n\n" + [line(rows[0]), line(rows[0].map(() => "---")), ...rows.slice(1).map(line)].join("\n") + "\n\n"
-    }
-    if (tag === "ul" || tag === "ol") {
-      return "\n\n" + [...node.children].map((li, index) => (tag === "ol" ? (index + node.start) + ". " : "- ") + children(li).trim().replace(/\n/g, "\n  ")).join("\n") + "\n\n"
-    }
-    const content = children(node)
-    if (/^h[1-6]$/.test(tag)) {
-      // Pasting over a heading can leave Chromium's old heading around block nodes.
-      const containsBlocks = [...node.children].some(child => /^(P|DIV|H[1-6]|UL|OL|TABLE|BLOCKQUOTE|PRE)$/.test(child.tagName))
-      return "\n\n" + (containsBlocks ? "" : "#".repeat(Number(tag[1])) + " ") + content.trim() + "\n\n"
-    }
-    if (tag === "strong" || tag === "b") return "**" + content + "**"
-    if (tag === "em" || tag === "i") return "*" + content + "*"
-    if (tag === "del" || tag === "s") return "~~" + content + "~~"
-    if (tag === "code") return content.includes("`") ? "`` " + content + " ``" : "`" + content + "`"
-    if (tag === "a") {
-      const href = node.getAttribute("href") || ""
-      return /^https?:\/\//i.test(href) ? "[" + content + "](" + href.replace(/\)/g, "%29") + ")" : content
-    }
-    if (tag === "blockquote") return "\n\n" + content.trim().split("\n").map(line => "> " + line).join("\n") + "\n\n"
-    if (tag === "hr") return "\n\n---\n\n"
-    if (tag === "p" || tag === "div") return "\n\n" + content + "\n\n"
-    return content
-  }
-  return children(root).replace(/\n{3,}/g, "\n\n").trim()
-}
-
 function editorMarkdown() {
-  if (state.editorDirty) {
-    state.lastArticleMarkdown = markdownFromEditor(draftEditor)
-    state.editorDirty = false
-  }
-  return state.lastArticleMarkdown
+  return richEditor.getMarkdown()
 }
 function setDraftMarkdown(markdown) {
   state.lastArticleMarkdown = normalizeMarkdown(markdown || "")
   state.editorDirty = false
-  draftEditor.innerHTML = renderMarkdown(state.lastArticleMarkdown)
+  richEditor.setContent(state.lastArticleMarkdown, state.activeProject)
   state.draftVersion += 1
 }
 function invalidateReports() {
@@ -389,6 +362,7 @@ function setBusy(busy) {
   $("#sendButton").disabled = busy || state.advancing || state.projectLoading || state.deletingProject || Boolean(state.previewFile)
   $("#stageActionButton").disabled = busy || state.advancing || state.projectLoading || state.deletingProject || Boolean(state.previewFile)
   $("#chooseWorkspace").disabled = busy || state.advancing || state.projectLoading || state.deletingProject
+  richEditor.setMode(Boolean(state.activeProject) && !state.projectLoading && !state.deletingProject, state.previewFile?.content ?? null)
   renderProcessSteps()
 }
 function projectStorageKey(project = state.activeProject) {
@@ -481,9 +455,6 @@ function renderProcessSteps() {
 function renderStage() {
   const step = currentStep()
   const preview = state.previewFile
-  draftEditor.hidden = Boolean(preview)
-  $("#filePreview").hidden = !preview
-  $("#filePreview").innerHTML = preview ? renderMarkdown(preview.content) || "<p>终稿内容为空。</p>" : ""
   $("#documentKind").textContent = preview ? "终稿预览 · final.md" : "工作稿 · draft.md"
   $("#saveDraftButton").textContent = preview ? "返回工作稿" : "保存工作稿"
   setBusy(state.busy)
@@ -563,6 +534,21 @@ function conversationContext() {
   }))
 }
 
+function embeddedImages(markdown) {
+  return [...new Set(markdown.match(/data:image\/(?:png|jpeg|webp|gif);base64,[a-z\d+/=]+/gi) || [])]
+}
+function modelDocument(text, originalDraft) {
+  const images = embeddedImages(originalDraft)
+  return text.replace(/data:image\/(?:png|jpeg|webp|gif);base64,[a-z\d+/=]+/gi, image => {
+    const index = images.indexOf(image)
+    return "https://lucidwrite.invalid/embedded-image/" + (index < 0 ? "reference" : index + 1)
+  })
+}
+function restoreEmbeddedImages(text, originalDraft) {
+  const images = embeddedImages(originalDraft || "")
+  return text.replace(/https:\/\/lucidwrite\.invalid\/embedded-image\/(\d+)/g, (url, index) => images[Number(index) - 1] || url)
+}
+
 // 所有步骤共用的输出格式规则（放在 prompt 末尾，确保 AI 最后看到）
 const OUTPUT_FORMAT = `
 
@@ -579,7 +565,8 @@ const OUTPUT_FORMAT = `
 1. 只要本轮对文章做了任何修改，必须输出 ## 文章草稿，且内容是修改后的完整文章。
 2. 如果本轮没有修改文章，省略 ## 文章草稿 节。
 3. 永远不要把文章内容写在 ## 对话回复 里。
-4. 永远不要在节标题外写任何内容。`
+4. 永远不要在节标题外写任何内容。
+5. 保留原文中表达格式的 HTML 和图片地址。lucidwrite.invalid/embedded-image/ 地址代表用户已保存的图片，请逐字保留；你只能依据图片说明，不能声称看到了图片内容。`
 
 function promptForStep(userText) {
   const draft = editorMarkdown()
@@ -706,8 +693,8 @@ async function runStepTask(userText, reason = "chat", promptOverride = "") {
     reason, step: state.currentStep,
     mayModifyDocument: reason === "stage" ? ["topic", "outline"].includes(state.currentStep) : state.currentStep !== "score",
   }
-  const conversation = conversationContext()
-  const message = promptOverride || (reason === "stage" ? promptForStageTask(userText) : promptForStep(userText))
+  const conversation = conversationContext().map(turn => ({ ...turn, content: modelDocument(turn.content, pending.draft) }))
+  const message = modelDocument(promptOverride || (reason === "stage" ? promptForStageTask(userText) : promptForStep(userText)), pending.draft)
   const taskMode = modeForTask(reason, userText)
   state.pendingTasks[taskId] = pending
   addChat("user", userText)
@@ -720,7 +707,7 @@ async function runStepTask(userText, reason = "chat", promptOverride = "") {
     const response = await apiFetch("/api/tasks", {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        id: taskId, mode: taskMode, message, context: buildAttachmentContext(), conversation,
+        id: taskId, mode: taskMode, message, context: modelDocument(buildAttachmentContext(), pending.draft), conversation,
         projectPath: project, request: pending,
         searchQuery: pending.step === "fact" ? pending.draft.split("\n").find(line => line.trim())?.replace(/^#+\s*/, "").slice(0, 300) : "",
       }),
@@ -808,7 +795,7 @@ async function renderTask(task) {
     setBusy(false)
     return
   }
-  const output = task.output
+  const output = restoreEmbeddedImages(task.output, pending.draft)
   const reply = reportFromOutput(output)
   // Use explicit article sections only: reports must never become an article.
   const draft = normalizeMarkdown(getSection(output, "文章草稿") || getSection(output, "完整初稿") || getSection(output, "初稿") || getSection(output, "完整大纲"))
@@ -1568,14 +1555,6 @@ $("#promptInput").addEventListener("keydown", (event) => {
     event.preventDefault()
     state.mention.open && state.mention.items.length ? safely(selectMention)() : safely(runStepTask)($("#promptInput").value.trim())
   }
-})
-draftEditor.addEventListener("input", () => {
-  state.draftVersion += 1
-  state.editorDirty = true
-  invalidateReports()
-  cacheProject()
-  scheduleAutosave()
-  renderStage()
 })
 window.addEventListener("dragover", (event) => {
   event.preventDefault()

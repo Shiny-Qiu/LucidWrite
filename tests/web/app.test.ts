@@ -3,9 +3,10 @@ import { JSDOM } from "jsdom"
 import { readFileSync } from "node:fs"
 const html = readFileSync(new URL("../../src/web/public/index.html", import.meta.url), "utf8")
 const source = readFileSync(new URL("../../src/web/public/app.js", import.meta.url), "utf8")
+const editorSource = readFileSync(new URL("../../src/web/public/editor.js", import.meta.url), "utf8")
 const windows: any[] = []
 async function setup(fetcher?: (url: string, init: any) => Promise<Response>) {
-  const dom = new JSDOM(html, { url: "http://localhost/app", runScripts: "outside-only" })
+  const dom = new JSDOM(html, { url: "http://localhost/app", runScripts: "outside-only", pretendToBeVisual: true })
   const w: any = dom.window
   windows.push(w)
   Object.defineProperty(w.HTMLElement.prototype, "innerText", { get() { return this.textContent || "" }, set(v) { this.textContent = v }, configurable: true })
@@ -14,17 +15,235 @@ async function setup(fetcher?: (url: string, init: any) => Promise<Response>) {
   w.Headers = Headers
   w.Response = Response
   w.AbortController = AbortController
+  w.ClipboardEvent = w.Event
+  w.Range.prototype.getClientRects = () => []
+  w.Range.prototype.getBoundingClientRect = () => ({ left: 0, right: 0, top: 0, bottom: 0, width: 0, height: 0 })
+  w.HTMLElement.prototype.scrollIntoView = () => {}
+  w.scrollBy = () => {}
   w.fetch = fetcher || (async () => Response.json({ files: [], projects: [], configured: true, state: {}, tasks: [] }))
-  w.eval(source + "\nwindow.testApp = {state, editorMarkdown, setDraftMarkdown, renderTask, runStepTask, saveDraft, advanceStage, apiFetch, openProject, openCloudFile, createTreeRow, saveFinal, logout, renderProcessSteps, selectMention, attachWorkspaceFile, requestDeleteProject, confirmDeleteProject};")
+  w.eval(editorSource + "\nwindow.LucidEditor = LucidEditor;")
+  w.eval(source + "\nwindow.testApp = {state, richEditor, editorMarkdown, setDraftMarkdown, renderTask, runStepTask, saveDraft, advanceStage, apiFetch, openProject, openCloudFile, createTreeRow, saveFinal, logout, renderProcessSteps, selectMention, attachWorkspaceFile, requestDeleteProject, confirmDeleteProject};")
   await Promise.resolve()
   const app = w.testApp
   app.state.session = { access_token: "old", refresh_token: "refresh", user: { id: "user-1" } }
   app.state.activeProject = "项目"
   app.state.draftPath = "项目/draft.md"
+  app.richEditor.setMode(true, null)
   return { w, app, editor: w.document.querySelector("#draftEditor") }
 }
-afterEach(() => { windows.splice(0).forEach(w => w.close()) })
+afterEach(() => { windows.splice(0).forEach(w => { w.testApp?.richEditor.destroy(); w.close() }) })
 const tick = () => new Promise(resolve => setTimeout(resolve, 0))
+
+test("formatting controls preserve their selection and rich attributes through save and reopening", async () => {
+  let persisted = ""
+  const { w, app, editor } = await setup(async (url, init) => {
+    if (url === "/api/files") persisted = JSON.parse(init.body).content
+    return Response.json({ path: "项目/draft.md", updatedAt: "v2" })
+  })
+  app.setDraftMarkdown("# 标题\n\n需要保留颜色和下划线")
+  const tiptap = app.richEditor.editor
+  tiptap.commands.setTextSelection({ from: 5, to: 15 })
+  w.document.querySelector('#editorToolbar [data-command="bold"]').click()
+  w.document.querySelector('#editorToolbar [data-command="underline"]').click()
+  app.richEditor.runCommand("color", "#245bdb")
+  app.richEditor.runCommand("center")
+  app.richEditor.runCommand("fontSize", "20px")
+  await app.saveDraft()
+  expect(persisted).toContain("<u>")
+  expect(persisted).toContain("text-align: center")
+  const before = tiptap.getHTML()
+  app.setDraftMarkdown(persisted)
+  expect(tiptap.getHTML()).toBe(before)
+  expect(editor.querySelector("u strong, strong u")).not.toBeNull()
+})
+
+test("tables keep merged cells and column widths after reload, and table buttons perform real operations", async () => {
+  const { w, app, editor } = await setup()
+  const tiptap = app.richEditor.editor
+  tiptap.commands.setContent('<table><colgroup><col style="width: 120px"><col style="width: 180px"></colgroup><tr><th colspan="2" colwidth="120,180">合并表头</th></tr><tr><td>甲</td><td>乙</td></tr></table>', { contentType: "html" })
+  const saved = app.editorMarkdown()
+  const before = tiptap.getJSON()
+  app.setDraftMarkdown(saved)
+  expect(tiptap.getJSON()).toEqual(before)
+  expect(editor.querySelector("th")?.colSpan).toBe(2)
+  let pos = 0
+  tiptap.state.doc.descendants((node: any, at: number) => { if (node.isText && node.text === "甲") pos = at })
+  tiptap.commands.setTextSelection(pos)
+  expect(w.document.querySelector("#editorTableTools").hidden).toBe(false)
+  w.document.querySelector('[data-command="addRowAfter"]').click()
+  expect(editor.querySelectorAll("tr")).toHaveLength(3)
+  tiptap.commands.undo()
+  expect(editor.querySelectorAll("tr")).toHaveLength(2)
+})
+
+test("code containing backticks and Markdown headings survives saving and reopening", async () => {
+  let persisted = ""
+  const { app } = await setup(async (url, init) => {
+    if (url === "/api/files") persisted = JSON.parse(init.body).content
+    return Response.json({ updatedAt: "v2" })
+  })
+  const tiptap = app.richEditor.editor
+  tiptap.commands.setContent({ type: "doc", content: [
+    { type: "codeBlock", attrs: { language: "markdown" }, content: [{ type: "text", text: "```md\n# Code, not a heading\n```\n~~~\n<example>" }] },
+    { type: "paragraph", content: [{ type: "text", text: "a `backtick` example", marks: [{ type: "code" }] }] },
+  ] })
+  const before = tiptap.getJSON()
+  await app.saveDraft()
+  app.setDraftMarkdown(persisted)
+  expect(tiptap.getJSON()).toEqual(before)
+})
+
+test("folding a block stays collapsed, saves its state and remains undoable", async () => {
+  const { app, editor } = await setup()
+  app.setDraftMarkdown('<details open><summary>摘要</summary><p>保留正文</p></details>')
+  const details = editor.querySelector("details")
+  details.querySelector("summary").click()
+  await new Promise(resolve => setTimeout(resolve, 40))
+  expect(details.open).toBe(false)
+  expect(app.richEditor.editor.state.doc.firstChild.attrs.open).toBe(false)
+  const saved = app.editorMarkdown()
+  expect(saved).toContain("保留正文")
+  expect(app.richEditor.editor.commands.undo()).toBe(true)
+  expect(editor.querySelector("details").open).toBe(true)
+  app.setDraftMarkdown(saved)
+  expect(editor.querySelector("details").open).toBe(false)
+})
+
+test("import rejects a document that would exceed total save capacity without changing the draft", async () => {
+  const { w, app } = await setup()
+  app.setDraftMarkdown("a".repeat(300_000))
+  const original = app.editorMarkdown()
+  const input = w.document.querySelector("#documentImport")
+  Object.defineProperty(input, "files", { configurable: true, value: [{ name: "large.md", size: 300_000, text: async () => "b".repeat(300_000) }] })
+  input.dispatchEvent(new w.Event("change"))
+  await tick()
+  expect(app.editorMarkdown()).toBe(original)
+  expect(w.document.querySelector("#editorMessage").textContent).toContain("超出保存容量")
+})
+
+test("task lists, callouts, folding blocks, columns and embedded images round-trip without losing content", async () => {
+  const { app } = await setup()
+  const tiptap = app.richEditor.editor
+  const paragraph = (text: string) => ({ type: "paragraph", content: [{ type: "text", text }] })
+  tiptap.commands.setContent({ type: "doc", content: [
+    { type: "taskList", content: [{ type: "taskItem", attrs: { checked: true }, content: [paragraph("已经完成")] }] },
+    { type: "callout", content: [paragraph("保留提示")] },
+    { type: "details", content: [{ type: "detailsSummary", content: [{ type: "text", text: "展开详情" }] }, paragraph("折叠内容")] },
+    { type: "columns", content: [{ type: "column", content: [paragraph("左栏")] }, { type: "column", content: [paragraph("右栏")] }] },
+    { type: "image", attrs: { src: "data:image/png;base64,aGVsbG8=", alt: "本地图片", width: 240 } },
+  ] })
+  const before = tiptap.getJSON(), saved = app.editorMarkdown()
+  app.setDraftMarkdown(saved)
+  expect(tiptap.getJSON()).toEqual(before)
+  expect(saved).toContain("[x] 已经完成")
+})
+
+test("slash menu supports filtering and keyboard insertion while respecting Chinese composition", async () => {
+  const { w, app } = await setup()
+  app.setDraftMarkdown("")
+  const tiptap = app.richEditor.editor
+  tiptap.commands.insertContent("/table")
+  const menu = w.document.querySelector(".editor-popup")
+  expect(menu.hidden).toBe(false)
+  expect(menu.textContent).toContain("表格")
+  tiptap.view.dom.dispatchEvent(new w.CompositionEvent("compositionstart", { bubbles: true }))
+  const composing = new w.KeyboardEvent("keydown", { key: "Enter", isComposing: true, bubbles: true, cancelable: true })
+  tiptap.view.dom.dispatchEvent(composing)
+  expect(menu.querySelector('input[aria-label="行数"]')).toBeNull()
+  tiptap.view.dom.dispatchEvent(new w.CompositionEvent("compositionend", { bubbles: true }))
+  // ProseMirror suppresses the IME-confirming Enter for 500 ms on Safari.
+  await new Promise(resolve => setTimeout(resolve, 520))
+  tiptap.view.dom.dispatchEvent(new w.KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }))
+  expect(menu.querySelector('input[aria-label="行数"]')).not.toBeNull()
+  menu.querySelector('[data-command="submit"]').click()
+  expect(tiptap.getHTML()).toContain("<table")
+  expect(tiptap.getText()).not.toContain("/table")
+  w.document.querySelector('[data-command="addRowAfter"]').click()
+  expect(tiptap.view.dom.querySelectorAll("tr")).toHaveLength(4)
+  tiptap.commands.undo()
+  expect(tiptap.view.dom.querySelectorAll("tr")).toHaveLength(3)
+})
+
+test("find and replace matches across inline formatting and replaces all in one undoable edit", async () => {
+  const { w, app } = await setup()
+  app.setDraftMarkdown("# 标题\n\n苹果**很好**吃，苹果很好吃。")
+  const before = app.richEditor.editor.getJSON()
+  app.richEditor.search("苹果很好吃")
+  expect(w.document.querySelector("#documentMatches").textContent).toBe("1 / 2")
+  w.document.querySelector("#documentReplace").value = "梨也不错"
+  app.richEditor.replace(true)
+  expect(app.richEditor.editor.getText()).toContain("梨也不错，梨也不错。")
+  expect(app.richEditor.editor.commands.undo()).toBe(true)
+  expect(app.richEditor.editor.getJSON()).toEqual(before)
+  const focusButton = w.document.querySelector("#editorFocusToggle")
+  focusButton.focus()
+  const shortcut = new w.KeyboardEvent("keydown", { key: "f", metaKey: true, bubbles: true, cancelable: true })
+  focusButton.dispatchEvent(shortcut)
+  expect(shortcut.defaultPrevented).toBe(true)
+  expect(w.document.activeElement).toBe(w.document.querySelector("#documentSearch"))
+})
+
+test("block menus move complete formatted paragraphs and preserve content on undo", async () => {
+  const { w, app } = await setup()
+  app.setDraftMarkdown("甲\n\n**乙**\n\n丙")
+  const tiptap = app.richEditor.editor
+  const before = tiptap.getJSON()
+  tiptap.commands.setTextSelection(4)
+  w.document.querySelector('.editor-gutter [data-command="blockMenu"]').click()
+  const up = [...w.document.querySelectorAll(".editor-menu-row")].find((button: any) => button.textContent === "上移") as any
+  up.click()
+  expect(tiptap.state.doc.firstChild.textContent).toBe("乙")
+  expect(tiptap.state.doc.firstChild.firstChild.marks[0].type.name).toBe("bold")
+  tiptap.commands.undo()
+  expect(tiptap.getJSON()).toEqual(before)
+})
+
+test("undo history is isolated between projects, and the saved final renders rich formatting read-only", async () => {
+  const { app, w } = await setup()
+  app.setDraftMarkdown("# 第一篇")
+  app.richEditor.editor.commands.insertContent("编辑")
+  expect(app.richEditor.editor.can().undo()).toBe(true)
+  app.state.activeProject = "另一篇"
+  app.setDraftMarkdown("# 第二篇")
+  expect(app.richEditor.editor.can().undo()).toBe(false)
+  app.richEditor.setMode(true, '<p style="text-align: center;"><u>终稿格式</u></p>')
+  expect(w.document.querySelector("#filePreview u").textContent).toBe("终稿格式")
+  expect(w.document.querySelector('#filePreview [contenteditable="true"]')).toBeNull()
+  expect(app.richEditor.runCommand("bold")).toBe(false)
+  expect(app.editorMarkdown()).toBe("# 第二篇")
+})
+
+test("rich clipboard HTML keeps visible formatting while removing executable markup and unsafe links", async () => {
+  const { app, editor } = await setup()
+  app.setDraftMarkdown("")
+  app.richEditor.editor.view.pasteHTML('<p onclick="alert(1)"><span style="color: rgb(36, 91, 219)">粘贴颜色</span> <u>下划线</u><a href="javascript:alert(1)">坏链接</a></p><script>alert(1)</script><iframe src="https://example.com"></iframe>')
+  expect(editor.querySelector("u")?.textContent).toBe("下划线")
+  expect(editor.querySelector("span[style]")?.style.color).toBe("rgb(36, 91, 219)")
+  expect(editor.querySelector("script,iframe,[onclick],a[href^='javascript:']")).toBeNull()
+  const saved = app.editorMarkdown()
+  app.setDraftMarkdown(saved)
+  expect(editor.querySelector("span[style]")?.style.color).toBe("rgb(36, 91, 219)")
+})
+
+test("AI requests omit embedded image bytes and restore their placeholders in the returned article", async () => {
+  let message = "", saved = ""
+  const src = "data:image/png;base64," + "a".repeat(220_000)
+  const { app, editor } = await setup(async (url, init) => {
+    const body = init?.body ? JSON.parse(init.body) : {}
+    if (url === "/api/files") saved = body.content
+    if (url === "/api/tasks") {
+      message = body.message
+      return Response.json({ task: { id: body.id, status: "completed", output: '## 对话回复\n已修改。\n## 文章草稿\n# 修改后的文章\n\n![保留图片](https://lucidwrite.invalid/embedded-image/1)' } })
+    }
+    return Response.json({ updatedAt: "v2" })
+  })
+  app.setDraftMarkdown(`# 原图文\n\n![保留图片](${src})`)
+  expect(await app.runStepTask("润色这篇文章，保留图片")).toBe(true)
+  expect(message).not.toContain("data:image")
+  expect(message.length).toBeLessThan(5000)
+  expect(editor.querySelector("img")?.getAttribute("src")).toBe(src)
+  expect(saved).toContain(src)
+})
 
 test("the project trash button asks for confirmation and cancel or Escape never deletes", async () => {
   const requests: string[] = []
@@ -243,21 +462,22 @@ test("opening and saving a Markdown article preserves its original syntax", asyn
 test("edited rich text preserves heading, emphasis, link and table semantics", async () => {
   const { w, app, editor } = await setup()
   app.setDraftMarkdown("# 标题\n\n原文")
-  editor.innerHTML = '<h1>新标题</h1><p><strong>重点</strong> <a href="https://example.com">来源</a></p><table><tr><th>项目</th><th>值</th></tr><tr><td>A</td><td>1</td></tr></table>'
-  editor.dispatchEvent(new w.Event("input"))
+  app.richEditor.editor.commands.setContent('<h1>新标题</h1><p><strong>重点</strong> <a href="https://example.com">来源</a></p><table><tr><th>项目</th><th>值</th></tr><tr><td>A</td><td>1</td></tr></table>', { contentType: "html" })
   const saved = app.editorMarkdown()
   expect(saved).toContain("# 新标题")
   expect(saved).toContain("**重点**")
   expect(saved).toContain("[来源](https://example.com)")
-  expect(saved).toContain("| 项目 | 值 |")
+  app.setDraftMarkdown(saved)
+  expect(editor.querySelector("table")?.textContent).toBe("项目值A1")
 })
 test("numbered lists retain their structure and starting number after editing and reopening", async () => {
   const { w, app, editor } = await setup()
   app.setDraftMarkdown("# 清单\n\n3. 第三步\n4. 第四步\n\n- 提醒")
   expect(editor.querySelector("ol")?.start).toBe(3)
   expect(editor.querySelectorAll("ol > li")).toHaveLength(2)
-  editor.querySelector("ol > li:last-child").textContent += "，已修改"
-  editor.dispatchEvent(new w.Event("input"))
+  let end = 0
+  app.richEditor.editor.state.doc.descendants((node: any, pos: number) => { if (node.isText && node.text === "第四步") end = pos + node.nodeSize })
+  app.richEditor.editor.commands.insertContentAt(end, "，已修改")
   const saved = app.editorMarkdown()
   expect(saved).toContain("3. 第三步\n4. 第四步，已修改")
   app.setDraftMarkdown(saved)
@@ -267,9 +487,8 @@ test("numbered lists retain their structure and starting number after editing an
 test("pasting an article over a heading does not turn pasted paragraphs into headings", async () => {
   const { w, app, editor } = await setup()
   app.setDraftMarkdown("# 新项目")
-  // Chromium keeps the original heading around the remaining pasted blocks.
-  editor.innerHTML = '<h1>文章标题</h1><h1><p>第一段正文。</p><p><strong>重点</strong>仍是正文。</p></h1>'
-  editor.dispatchEvent(new w.Event("input"))
+  app.richEditor.editor.commands.selectAll()
+  app.richEditor.editor.view.pasteHTML('<h1>文章标题</h1><p>第一段正文。</p><p><strong>重点</strong>仍是正文。</p>')
   const saved = app.editorMarkdown()
   app.setDraftMarkdown(saved)
   expect(editor.querySelectorAll("h1")).toHaveLength(1)
@@ -279,8 +498,7 @@ test("pasting an article over a heading does not turn pasted paragraphs into hea
 test("deleting the whole draft really saves an empty draft", async () => {
   const { w, app, editor } = await setup()
   app.setDraftMarkdown("# 原文\n\n应当删除")
-  editor.innerHTML = ""
-  editor.dispatchEvent(new w.Event("input"))
+  app.richEditor.editor.commands.clearContent()
   expect(app.editorMarkdown()).toBe("")
 })
 test("AI outline completion cannot overwrite edits made while it was running", async () => {

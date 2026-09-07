@@ -47,3 +47,4 @@ AGENTS.md
 public/*
 !public/.gitkeep
 .vercel/
+src/web/public/editor.js

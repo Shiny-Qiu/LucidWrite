@@ -1,4 +1,5 @@
 import { cp, mkdir, rename } from "node:fs/promises"
+import "./build-editor.mjs"
 
 await mkdir("public", { recursive: true })
 await cp("src/web/public", "public", { recursive: true })

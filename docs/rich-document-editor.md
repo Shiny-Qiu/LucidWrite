@@ -38,3 +38,11 @@ bun run test:web
 npm run build:web
 bun run typecheck
 ```
+
+## 表格边框修正
+
+用户反馈最后一行缺少底边后，在正式页面复现。原因是新编辑器外层仍使用旧的 `.draft-editor`，触发 `styles.css` 中优先级更高的 `.draft-editor tr:last-child td { border-bottom: 0 }`。
+
+工作稿和终稿改用独立的 `.document-canvas`，隔离旧 Markdown 排版规则；表格设置完整外边框，滚动容器留出 1px 边框绘制空间。空单元格不再显示长段落占位提示。
+
+隔离环境使用真实 Chrome 检查普通三列表格、跨行跨列合并表格、单格表格和八列宽表格；底边与外边框完整，宽表格最右列可以滚入视野。68 项既有回归测试和网页构建通过。此修复不修改文章数据。

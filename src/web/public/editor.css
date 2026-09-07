@@ -16,8 +16,8 @@
 .color-letter { font: 15px Georgia, serif; border-bottom: 3px solid #d83931; }
 .editor-body { display: flex; flex: 1; min-height: 0; min-width: 0; position: relative; }
 .editor-scroll { --document-zoom: 1; flex: 1; overflow: auto; overscroll-behavior: contain; min-width: 0; min-height: 0; scroll-padding: 28px; }
-.editor-scroll .draft-editor { min-height: 100%; max-width: 780px; padding: 30px 36px 100px 52px; margin: 0 auto; overflow: visible; border: 0; border-radius: 0; font-size: 16px; }
-.editor-scroll .draft-editor:empty::before { content: none; }
+.editor-scroll .document-canvas { min-height: 100%; max-width: 780px; padding: 30px 36px 100px 52px; margin: 0 auto; overflow: visible; border: 0; border-radius: 0; font-size: 16px; }
+.editor-scroll .document-canvas:empty::before { content: none; }
 .document-content { min-height: 240px; outline: 0; color: #1f2329; font: 16px/1.8 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; overflow-wrap: anywhere; zoom: var(--document-zoom, 1); }
 .document-content p { margin: 0 0 12px; min-height: 1.8em; }
 .document-content h1, .document-content h2, .document-content h3, .document-content h4, .document-content h5, .document-content h6 { font-weight: 600; line-height: 1.45; margin: 24px 0 12px; color: inherit; letter-spacing: 0; }
@@ -43,10 +43,12 @@
 .document-content img { display: block; max-width: 100%; height: auto; margin: 18px 0; border-radius: 3px; }
 .document-content .ProseMirror-selectednode { outline: 2px solid #245bdb; outline-offset: 2px; }
 .document-content hr { border: 0; border-top: 1px solid #d0d3d8; margin: 24px 0; }
-.document-content .tableWrapper { overflow-x: auto; margin: 18px 0; }
-.document-content table { border-collapse: collapse; table-layout: fixed; width: 100%; margin: 0; overflow: hidden; border: 0; border-radius: 0; }
+/* The canvas has its own class so legacy Markdown rules cannot erase cell borders. */
+.document-content .tableWrapper { max-width: 100%; overflow-x: auto; margin: 18px 0; padding: 1px; }
+.document-content table { border-collapse: collapse; table-layout: fixed; width: 100%; margin: 0; overflow: visible; border: 1px solid #d0d3d8; border-radius: 0; }
 .document-content td, .document-content th { border: 1px solid #d0d3d8; padding: 7px 10px; min-width: 60px; vertical-align: top; position: relative; font-size: 14px; text-align: left; }
 .document-content th { background: #f5f6f7; font-weight: 600; }.document-content td p, .document-content th p { margin: 0; }
+.document-content td p.is-empty::before, .document-content th p.is-empty::before { display: none; }
 .document-content .selectedCell::after { position: absolute; inset: 0; content: ""; background: rgba(36,91,219,.12); pointer-events: none; }
 .document-content .column-resize-handle { position: absolute; right: -2px; top: 0; bottom: -2px; width: 4px; background: #245bdb; pointer-events: none; }
 .document-content.resize-cursor { cursor: col-resize; }
@@ -89,12 +91,12 @@
 .editor-find input { flex: 1; min-width: 60px; height: 30px; border: 1px solid #d0d3d8; border-radius: 4px; padding: 4px 8px; font: inherit; background: #fff; }
 .editor-find span { min-width: 36px; text-align: center; white-space: nowrap; color: #646a73; }.editor-find button { height: 28px; font-size: 12px; }.editor-find button:disabled { opacity: .4; cursor: default; }
 .find-match { background: #fff1b8; }.find-current { background: #ffd591; outline: 1px solid #d97706; }
-.editor-fullscreen { position: fixed; z-index: 1000; inset: 12px; border-radius: 8px; box-shadow: 0 12px 48px rgba(0,0,0,.18); }.editor-fullscreen .editor-scroll .draft-editor { padding-top: 48px; }.editor-fullscreen::backdrop { background: rgba(0,0,0,.4); }
+.editor-fullscreen { position: fixed; z-index: 1000; inset: 12px; border-radius: 8px; box-shadow: 0 12px 48px rgba(0,0,0,.18); }.editor-fullscreen .editor-scroll .document-canvas { padding-top: 48px; }.editor-fullscreen::backdrop { background: rgba(0,0,0,.4); }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .editor-popup[hidden], .editor-bubble[hidden], .editor-gutter[hidden], .editor-context-tools[hidden], .editor-find[hidden], .editor-outline[hidden], .editor-toolbar[hidden] { display: none; }
 .editor-menu-formats { display: flex; gap: 8px; padding: 8px; }.editor-menu-formats select { border: 1px solid #d0d3d8; border-radius: 4px; padding: 5px; font: 13px system-ui; width: auto; flex: 1; background: #fff; color: #1f2329; }
 @container (max-width: 590px) { .editor-toolbar .editor-font-select { display: none; } }
 @container (max-width: 450px) { .editor-toolbar .editor-size-select, .editor-toolbar [data-command="strike"], .editor-toolbar .editor-divider { display: none; }.editor-toolbar { gap: 1px; }.editor-toolbar .editor-tool { min-width: 26px; padding: 5px; } }
-@media (max-width: 1200px) { .writing-stage { padding: 14px 14px 6px; gap: 9px; }.editor-toolbar { padding: 5px 7px; }.editor-toolbar .editor-font-select { width: 65px; }#editorHint { display: none; }.editor-footer #editorSelectionCount { flex: 1; }.editor-scroll .draft-editor { padding: 24px 24px 80px 48px; } }
-@media (max-width: 700px) { .editor-toolbar { gap: 1px; }.editor-toolbar .editor-tool { min-width: 28px; padding: 5px; }.editor-outline { position: absolute; z-index: 2; width: 160px; left: 0; top: 0; bottom: 0; background: #fff; box-shadow: 4px 0 12px rgba(0,0,0,.08); }.document-columns { flex-direction: column; gap: 12px; }.editor-scroll .draft-editor { padding-right: 18px; }.editor-fullscreen { inset: 0; border-radius: 0; }.editor-footer { gap: 4px; } }
+@media (max-width: 1200px) { .writing-stage { padding: 14px 14px 6px; gap: 9px; }.editor-toolbar { padding: 5px 7px; }.editor-toolbar .editor-font-select { width: 65px; }#editorHint { display: none; }.editor-footer #editorSelectionCount { flex: 1; }.editor-scroll .document-canvas { padding: 24px 24px 80px 48px; } }
+@media (max-width: 700px) { .editor-toolbar { gap: 1px; }.editor-toolbar .editor-tool { min-width: 28px; padding: 5px; }.editor-outline { position: absolute; z-index: 2; width: 160px; left: 0; top: 0; bottom: 0; background: #fff; box-shadow: 4px 0 12px rgba(0,0,0,.08); }.document-columns { flex-direction: column; gap: 12px; }.editor-scroll .document-canvas { padding-right: 18px; }.editor-fullscreen { inset: 0; border-radius: 0; }.editor-footer { gap: 4px; } }
 @media (prefers-reduced-motion: reduce) { .editor-scroll { scroll-behavior: auto; } }
